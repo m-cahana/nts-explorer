@@ -1,9 +1,9 @@
-name: Daily Scrape
+name: Daily NTS Scrape
 
 on:
   schedule:
-    # Run daily at 6am UTC
-    - cron: '0 6 * * *'
+    # Run daily at midnight UK time (23:00 UTC to account for BST)
+    - cron: '0 23 * * *'
   workflow_dispatch:
     # Allow manual trigger from GitHub UI
 
@@ -25,11 +25,10 @@ jobs:
           cd scraper
           pip install -r requirements.txt
 
-      - name: Run scraper
+      - name: Run NTS scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          SOUNDCLOUD_USER_ID: ${{ secrets.SOUNDCLOUD_USER_ID }}
         run: |
           cd scraper
-          python scraper.py
+          python nts_scraper.py
