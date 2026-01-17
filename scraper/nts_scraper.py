@@ -4,9 +4,12 @@ NTS Explorer - NTS.live Scraper
 Scrapes all episodes from NTS.live API and stores them in Supabase.
 Extracts genres, moods, location, and SoundCloud URLs for matching.
 
+Note: NTS API has a 1000 offset limit, so we fetch shows in multiple passes
+with different sort orders to get all shows.
+
 Usage:
     python nts_scraper.py           # Full scrape (resumes if previously interrupted)
-    python nts_scraper.py --reset   # Start fresh
+    python nts_scraper.py --reset   # Start fresh (clears processed shows tracking)
 """
 
 import asyncio
@@ -31,6 +34,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 NTS_API_BASE = "https://www.nts.live/api/v2"
 PAGE_SIZE = 12  # Very small batches - NTS API is strict
+MAX_OFFSET = 1000  # NTS API rejects offsets >= 1001
 RATE_LIMIT_DELAY = 1.0  # Seconds between requests
 SHOWS_BATCH_DELAY = 2.0  # Delay when fetching shows list
 
@@ -46,37 +50,50 @@ HEADERS = {
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
-def get_progress() -> Dict:
-    """Get saved progress from Supabase for resume capability."""
+def get_episode_counts_by_show() -> Dict[str, int]:
+    """Get count of episodes per show_alias in database."""
     try:
-        result = supabase.table("nts_scrape_progress").select("*").eq("id", 1).single().execute()
-        return result.data if result.data else {"shows_completed": 0, "current_show": None, "episodes_scraped": 0}
+        # Fetch all show_alias values with pagination (Supabase has 1000 row default limit)
+        counts: Dict[str, int] = {}
+        batch_size = 1000
+        offset = 0
+        
+        while True:
+            result = supabase.table("nts_episodes").select("show_alias").range(offset, offset + batch_size - 1).execute()
+            
+            if not result.data:
+                break
+                
+            for row in result.data:
+                alias = row["show_alias"]
+                counts[alias] = counts.get(alias, 0) + 1
+            
+            if len(result.data) < batch_size:
+                break  # Last page
+                
+            offset += batch_size
+        
+        return counts
+    except Exception as e:
+        print(f"Warning: Could not load episode counts: {e}")
+        return {}
+
+
+def get_total_episodes_count() -> int:
+    """Get total count of episodes in database."""
+    try:
+        result = supabase.table("nts_episodes").select("episode_alias", count="exact").execute()
+        return result.count or 0
     except Exception:
-        return {"shows_completed": 0, "current_show": None, "episodes_scraped": 0}
-
-
-def save_progress(shows_completed: int, current_show: Optional[str], episodes_scraped: int):
-    """Save current progress to Supabase."""
-    data = {
-        "id": 1,
-        "shows_completed": shows_completed,
-        "current_show": current_show,
-        "episodes_scraped": episodes_scraped,
-        "updated_at": datetime.utcnow().isoformat()
-    }
-    supabase.table("nts_scrape_progress").upsert(data).execute()
+        return 0
 
 
 def reset_progress():
-    """Reset progress to start fresh."""
-    supabase.table("nts_scrape_progress").upsert({
-        "id": 1,
-        "shows_completed": 0,
-        "current_show": None,
-        "episodes_scraped": 0,
-        "updated_at": datetime.utcnow().isoformat()
-    }).execute()
-    print("Progress reset to 0")
+    """Reset progress by clearing the episodes table."""
+    print("Clearing all episodes from database...")
+    # Delete all episodes (this resets the scrape)
+    supabase.table("nts_episodes").delete().neq("episode_alias", "").execute()
+    print("Progress reset - all episodes cleared")
 
 
 async def fetch_json(session: aiohttp.ClientSession, url: str, retries: int = 5) -> Optional[Dict[str, Any]]:
@@ -86,10 +103,14 @@ async def fetch_json(session: aiohttp.ClientSession, url: str, retries: int = 5)
             async with session.get(url, headers=HEADERS) as resp:
                 if resp.status == 200:
                     return await resp.json()
-                elif resp.status == 422 or resp.status == 429:
-                    # Rate limited - wait much longer and retry
-                    wait_time = 30 + (attempt * 30)  # 30s, 60s, 90s, 120s, 150s
-                    print(f"  Rate limited ({resp.status}), waiting {wait_time}s...")
+                elif resp.status == 422:
+                    # Unprocessable Entity - likely invalid offset, don't retry
+                    print(f"  API rejected request (422): {url}")
+                    return None
+                elif resp.status == 429:
+                    # Rate limited - wait and retry
+                    wait_time = 30 + (attempt * 30)
+                    print(f"  Rate limited (429), waiting {wait_time}s...")
                     await asyncio.sleep(wait_time)
                 else:
                     print(f"  Error fetching {url}: {resp.status}")
@@ -104,11 +125,19 @@ async def fetch_json(session: aiohttp.ClientSession, url: str, retries: int = 5)
     return None
 
 
-async def fetch_shows_batch(session: aiohttp.ClientSession, offset: int) -> tuple[List[Dict], int]:
-    """Fetch a batch of shows. Returns (shows, total_count)."""
-    url = f"{NTS_API_BASE}/shows?limit={PAGE_SIZE}&offset={offset}"
-    print(f"Fetching shows (offset {offset})...")
-
+async def fetch_shows_batch(session: aiohttp.ClientSession, offset: int, sort_order: str = "asc") -> tuple[List[Dict], int]:
+    """Fetch a batch of shows. Returns (shows, total_count).
+    
+    Args:
+        offset: Pagination offset (max 1000)
+        sort_order: 'asc' for A-Z, 'desc' for Z-A
+    """
+    # Try different sort parameters - NTS API may support one of these
+    if sort_order == "desc":
+        url = f"{NTS_API_BASE}/shows?limit={PAGE_SIZE}&offset={offset}&sort=-name"
+    else:
+        url = f"{NTS_API_BASE}/shows?limit={PAGE_SIZE}&offset={offset}"
+    
     data = await fetch_json(session, url)
     if not data:
         return [], 0
@@ -118,6 +147,15 @@ async def fetch_shows_batch(session: aiohttp.ClientSession, offset: int) -> tupl
     total = metadata.get("count", 0)
 
     return results, total
+
+
+async def get_show_episode_count(session: aiohttp.ClientSession, show_alias: str) -> int:
+    """Get total episode count for a show from API (single request)."""
+    url = f"{NTS_API_BASE}/shows/{show_alias}/episodes?limit=1&offset=0"
+    data = await fetch_json(session, url)
+    if not data:
+        return 0
+    return data.get("metadata", {}).get("resultset", {}).get("count", 0)
 
 
 async def fetch_show_episodes(session: aiohttp.ClientSession, show_alias: str, show_name: str) -> List[Dict]:
@@ -206,82 +244,156 @@ def save_episodes_batch(episodes: List[Dict]):
     ).execute()
 
 
+async def collect_all_shows(session: aiohttp.ClientSession) -> List[Dict]:
+    """Collect all shows by fetching with multiple sort orders to bypass 1000 offset limit."""
+    all_shows = {}  # Dedupe by show_alias
+    
+    # Get total count
+    _, total_shows = await fetch_shows_batch(session, 0)
+    if total_shows == 0:
+        print("Error: Could not fetch shows count")
+        return []
+    
+    print(f"Total shows in NTS: {total_shows}")
+    print(f"API offset limit: {MAX_OFFSET} (need multiple passes if > {MAX_OFFSET} shows)")
+    
+    # Pass 1: Default sort order (A-Z by name)
+    print(f"\n--- Pass 1: Fetching shows A-Z ---")
+    offset = 0
+    while offset < min(total_shows, MAX_OFFSET):
+        shows_batch, _ = await fetch_shows_batch(session, offset, "asc")
+        if not shows_batch:
+            break
+        
+        for show in shows_batch:
+            alias = show.get("show_alias")
+            if alias and alias not in all_shows:
+                all_shows[alias] = show
+        
+        print(f"  Offset {offset}: got {len(shows_batch)} shows, total unique: {len(all_shows)}")
+        offset += PAGE_SIZE
+        await asyncio.sleep(SHOWS_BATCH_DELAY)
+    
+    # Pass 2: Reverse sort order (Z-A by name) - if we haven't got all shows yet
+    if len(all_shows) < total_shows:
+        print(f"\n--- Pass 2: Fetching shows Z-A (to get remaining {total_shows - len(all_shows)}) ---")
+        offset = 0
+        consecutive_dupes = 0
+        
+        while offset < min(total_shows, MAX_OFFSET):
+            shows_batch, _ = await fetch_shows_batch(session, offset, "desc")
+            if not shows_batch:
+                break
+            
+            new_in_batch = 0
+            for show in shows_batch:
+                alias = show.get("show_alias")
+                if alias and alias not in all_shows:
+                    all_shows[alias] = show
+                    new_in_batch += 1
+            
+            print(f"  Offset {offset}: got {len(shows_batch)} shows, {new_in_batch} new, total unique: {len(all_shows)}")
+            
+            # If we're getting all duplicates, we've covered everything accessible
+            if new_in_batch == 0:
+                consecutive_dupes += 1
+                if consecutive_dupes >= 3:
+                    print(f"  3 consecutive batches with no new shows, stopping pass 2")
+                    break
+            else:
+                consecutive_dupes = 0
+            
+            offset += PAGE_SIZE
+            await asyncio.sleep(SHOWS_BATCH_DELAY)
+    
+    print(f"\nCollected {len(all_shows)} unique shows out of {total_shows} total")
+    
+    if len(all_shows) < total_shows:
+        print(f"WARNING: Could not collect all shows due to API offset limit.")
+        print(f"Missing approximately {total_shows - len(all_shows)} shows.")
+    
+    return list(all_shows.values())
+
+
 async def scrape_all(start_fresh: bool = False):
-    """Main scraping function - processes shows one batch at a time."""
+    """Main scraping function - collects all shows then processes ones with new episodes."""
     if start_fresh:
         reset_progress()
-
-    progress = get_progress()
-    shows_completed = progress.get("shows_completed", 0)
-    total_episodes = progress.get("episodes_scraped", 0)
-
-    print(f"Starting scrape (resuming from show {shows_completed})")
+    
+    # Load episode counts per show from database
+    db_episode_counts = get_episode_counts_by_show()
+    total_episodes = get_total_episodes_count()
+    
+    print(f"Database: {len(db_episode_counts)} shows, {total_episodes} episodes")
 
     async with aiohttp.ClientSession() as session:
-        # Get total count first
-        _, total_shows = await fetch_shows_batch(session, 0)
-        if total_shows == 0:
-            print("Error: Could not fetch shows count")
+        # Collect all shows (handles offset limit internally)
+        all_shows = await collect_all_shows(session)
+        
+        if not all_shows:
+            print("Error: Could not collect shows")
             return
+        
+        print(f"\nChecking {len(all_shows)} shows for new episodes...")
+        
+        shows_processed = 0
+        shows_skipped = 0
+        new_episodes_total = 0
 
-        print(f"Total shows to process: {total_shows}")
-        await asyncio.sleep(SHOWS_BATCH_DELAY)
+        # Process each show
+        for i, show in enumerate(all_shows):
+            show_alias = show.get("show_alias")
+            show_name = show.get("name", show_alias)
+            
+            # Check how many episodes we have vs API has
+            db_count = db_episode_counts.get(show_alias, 0)
+            api_count = await get_show_episode_count(session, show_alias)
+            
+            if api_count == 0:
+                print(f"[{i+1}/{len(all_shows)}] {show_name}: no episodes")
+                continue
+            
+            if db_count >= api_count:
+                # We have all episodes (or more due to edge cases), skip
+                shows_skipped += 1
+                if (i + 1) % 50 == 0:  # Progress update every 50 shows
+                    print(f"[{i+1}/{len(all_shows)}] Checked... ({shows_skipped} up-to-date, {shows_processed} updated)")
+                continue
+            
+            # We're missing episodes, fetch them all
+            new_count = api_count - db_count
+            print(f"\n[{i+1}/{len(all_shows)}] {show_name}: {db_count} in DB, {api_count} in API (+{new_count} new)")
 
-        # Process shows in batches - fetch a batch, process it, then fetch next
-        current_offset = shows_completed
+            # Fetch all episodes for this show
+            episodes_raw = await fetch_show_episodes(session, show_alias, show_name)
 
-        while current_offset < total_shows:
-            # Fetch this batch of shows
-            shows_batch, _ = await fetch_shows_batch(session, current_offset)
+            if not episodes_raw:
+                print(f"  No episodes found")
+                continue
 
-            if not shows_batch:
-                print(f"  Failed to fetch shows at offset {current_offset}, stopping.")
-                break
+            # Extract data from episodes
+            episodes = []
+            for ep in episodes_raw:
+                data = extract_episode_data(ep)
+                if data:
+                    episodes.append(data)
 
-            print(f"  Got {len(shows_batch)} shows (offset {current_offset}/{total_shows})")
-            await asyncio.sleep(SHOWS_BATCH_DELAY)
+            if episodes:
+                print(f"  Saving {len(episodes)} episodes (upsert handles duplicates)...")
+                save_episodes_batch(episodes)
+                new_episodes_total += new_count
+                shows_processed += 1
+            else:
+                print(f"  No episodes with SoundCloud URLs")
 
-            # Process each show in this batch
-            for i, show in enumerate(shows_batch):
-                show_alias = show.get("show_alias")
-                show_name = show.get("name", show_alias)
-                current_show_num = current_offset + i + 1
-
-                print(f"\n[{current_show_num}/{total_shows}] Processing: {show_name}")
-
-                # Fetch all episodes for this show
-                episodes_raw = await fetch_show_episodes(session, show_alias, show_name)
-
-                if not episodes_raw:
-                    print(f"  No episodes found")
-                    save_progress(current_show_num, None, total_episodes)
-                    continue
-
-                # Extract data from episodes
-                episodes = []
-                for ep in episodes_raw:
-                    data = extract_episode_data(ep)
-                    if data:
-                        episodes.append(data)
-
-                if episodes:
-                    print(f"  Saving {len(episodes)} episodes...")
-                    save_episodes_batch(episodes)
-                    total_episodes += len(episodes)
-                else:
-                    print(f"  No episodes with SoundCloud URLs")
-
-                # Save progress after each show
-                save_progress(current_show_num, None, total_episodes)
-
-                await asyncio.sleep(RATE_LIMIT_DELAY)
-
-            # Move to next batch
-            current_offset += len(shows_batch)
+            await asyncio.sleep(RATE_LIMIT_DELAY)
 
         print(f"\n{'='*50}")
         print(f"Scraping finished!")
-        print(f"Total episodes scraped: {total_episodes}")
+        print(f"Shows checked: {len(all_shows)}")
+        print(f"Shows updated: {shows_processed}")
+        print(f"Shows up-to-date: {shows_skipped}")
+        print(f"New episodes added: ~{new_episodes_total}")
 
 
 if __name__ == "__main__":
