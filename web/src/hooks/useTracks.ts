@@ -4,6 +4,18 @@ import type { Track } from '../types';
 
 const PAGE_SIZE = 1000;
 
+interface NtsEpisode {
+  id: number;
+  episode_alias: string;
+  show_name: string | null;
+  name: string | null;
+  soundcloud_url: string | null;
+  picture_url: string | null;
+  genres: string[] | null;
+  moods: string[] | null;
+  location_short: string | null;
+}
+
 export function useTracks() {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,16 +30,28 @@ export function useTracks() {
 
         while (hasMore) {
           const { data, error } = await supabase
-            .from('tracks')
-            .select('id, soundcloud_id, title, permalink_url, artwork_url, duration_ms, genre_tags, is_streamable')
-            .eq('is_streamable', true)
-            .order('created_at', { ascending: false })
+            .from('nts_episodes')
+            .select('id, episode_alias, show_name, name, soundcloud_url, picture_url, genres, moods, location_short')
+            .not('soundcloud_url', 'is', null)
+            .order('id', { ascending: false })
             .range(from, from + PAGE_SIZE - 1);
 
           if (error) throw error;
 
           if (data && data.length > 0) {
-            allTracks.push(...data);
+            // Map NTS fields to Track interface
+            const mapped: Track[] = (data as NtsEpisode[]).map(ep => ({
+              id: ep.id,
+              episode_alias: ep.episode_alias,
+              show_name: ep.show_name,
+              title: ep.name || 'Untitled',
+              permalink_url: ep.soundcloud_url!,
+              artwork_url: ep.picture_url,
+              genres: ep.genres,
+              moods: ep.moods,
+              location_short: ep.location_short,
+            }));
+            allTracks.push(...mapped);
             from += PAGE_SIZE;
             hasMore = data.length === PAGE_SIZE;
           } else {

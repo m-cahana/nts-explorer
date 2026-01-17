@@ -26,6 +26,7 @@ export interface SoundCloudPlayerHandle {
   play: () => void;
   seekTo: (ms: number) => void;
   getPosition: (callback: (ms: number) => void) => void;
+  getDuration: (callback: (ms: number) => void) => void;
 }
 
 interface Props {
@@ -125,13 +126,20 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, Props>(
       }
     }, []);
 
+    const getDuration = useCallback((callback: (ms: number) => void) => {
+      if (widgetRef.current) {
+        widgetRef.current.getDuration(callback);
+      }
+    }, []);
+
     useImperativeHandle(ref, () => ({
       loadTrack,
       pause,
       play,
       seekTo,
       getPosition,
-    }), [loadTrack, pause, play, seekTo, getPosition]);
+      getDuration,
+    }), [loadTrack, pause, play, seekTo, getPosition, getDuration]);
 
     return (
       <iframe

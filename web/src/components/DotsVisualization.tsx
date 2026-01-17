@@ -35,7 +35,7 @@ function generatePositions(tracks: Track[]): Map<number, DotPosition> {
     positions.set(track.id, {
       id: track.id,
       x: seededRandom(seed) * 90 + 5,      // 5-95% to avoid edges
-      y: seededRandom(seed * 2) * 90 + 5,  // 5-95%
+      y: seededRandom(seed * 2) * 70 + 10, // 10-80% to avoid top/bottom
     });
   });
 
@@ -52,6 +52,7 @@ export function DotsVisualization() {
   const [isMainPlayerReady, setIsMainPlayerReady] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragPosition, setDragPosition] = useState(0);
+  const [trackDuration, setTrackDuration] = useState(0);
   const mainPlayerRef = useRef<SoundCloudPlayerHandle>(null);
   const previewPlayerRef = useRef<SoundCloudPlayerHandle>(null);
   const hoverTimeoutRef = useRef<number | null>(null);
@@ -73,6 +74,13 @@ export function DotsVisualization() {
       mainPlayerRef.current.loadTrack(track.permalink_url, seekToMs);
       setIsPaused(false);
       setCurrentPosition(seekToMs || 0);
+      setTrackDuration(0); // Reset until we get the new duration
+      // Fetch duration after a short delay (widget needs time to load)
+      setTimeout(() => {
+        mainPlayerRef.current?.getDuration((duration) => {
+          setTrackDuration(duration);
+        });
+      }, 1000);
     }
   }, [getTrack]);
 
@@ -241,11 +249,11 @@ export function DotsVisualization() {
 
   // Calculate position from mouse event
   const getPositionFromMouse = useCallback((clientX: number): number => {
-    if (!progressBarRef.current || !activeTrack?.duration_ms) return 0;
+    if (!progressBarRef.current || !trackDuration) return 0;
     const rect = progressBarRef.current.getBoundingClientRect();
     const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    return Math.floor(percentage * activeTrack.duration_ms);
-  }, [activeTrack]);
+    return Math.floor(percentage * trackDuration);
+  }, [trackDuration]);
 
   // Mouse move and mouse up handlers (attached to window during drag)
   useEffect(() => {
@@ -336,20 +344,20 @@ export function DotsVisualization() {
         );
       })}
 
-      {/* Track info overlay */}
+      {/* Track info overlay - right aligned */}
       {displayTrack && (
         <div style={{
           position: 'fixed',
-          bottom: '90px',
-          left: '20px',
+          bottom: '20px',
+          right: '20px',
           backgroundColor: 'rgba(0, 0, 0, 0.8)',
           color: 'white',
-          padding: '12px 16px',
+          padding: '10px 16px',
           borderRadius: '8px',
           maxWidth: '400px',
-          fontSize: '14px',
+          fontSize: '13px',
         }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>
             {isPreviewingDifferentTrack ? 'Previewing' : 'Now Playing'}
           </div>
           <div style={{ opacity: 0.9 }}>
@@ -413,8 +421,7 @@ export function DotsVisualization() {
               const rect = e.currentTarget.getBoundingClientRect();
               const clickX = e.clientX - rect.left;
               const percentage = clickX / rect.width;
-              const duration = activeTrack.duration_ms || 0;
-              const newPos = Math.floor(percentage * duration);
+              const newPos = Math.floor(percentage * trackDuration);
               setDragPosition(newPos);
               setIsDragging(true);
             }}
@@ -422,7 +429,7 @@ export function DotsVisualization() {
             {/* Filled portion */}
             <div
               style={{
-                width: `${activeTrack.duration_ms ? ((isDragging ? dragPosition : currentPosition) / activeTrack.duration_ms) * 100 : 0}%`,
+                width: `${trackDuration ? ((isDragging ? dragPosition : currentPosition) / trackDuration) * 100 : 0}%`,
                 height: '100%',
                 backgroundColor: 'white',
                 borderRadius: '3px',
@@ -434,7 +441,7 @@ export function DotsVisualization() {
               style={{
                 position: 'absolute',
                 top: '50%',
-                left: `${activeTrack.duration_ms ? ((isDragging ? dragPosition : currentPosition) / activeTrack.duration_ms) * 100 : 0}%`,
+                left: `${trackDuration ? ((isDragging ? dragPosition : currentPosition) / trackDuration) * 100 : 0}%`,
                 transform: 'translate(-50%, -50%)',
                 width: isDragging ? '14px' : '12px',
                 height: isDragging ? '14px' : '12px',
@@ -450,7 +457,7 @@ export function DotsVisualization() {
 
           {/* Total duration */}
           <span style={{ minWidth: '55px', opacity: 0.7 }}>
-            {formatTime(activeTrack.duration_ms || 0)}
+            {trackDuration ? formatTime(trackDuration) : '--:--'}
           </span>
         </div>
       )}
