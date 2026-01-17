@@ -69,29 +69,6 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, Props>(
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const widgetRef = useRef<SCWidget | null>(null);
     const isReadyRef = useRef(false);
-    const wasPlayingRef = useRef(false);
-
-    // Handle visibility change to ensure playback continues in background
-    useEffect(() => {
-      const handleVisibilityChange = () => {
-        if (document.hidden) {
-          if (widgetRef.current) {
-            widgetRef.current.getPosition((pos) => {
-              wasPlayingRef.current = pos > 0;
-            });
-          }
-        } else {
-          if (wasPlayingRef.current && widgetRef.current) {
-            widgetRef.current.play();
-          }
-        }
-      };
-
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-      return () => {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-      };
-    }, []);
 
     // Initialize widget when script is loaded
     useEffect(() => {
