@@ -7,11 +7,16 @@ import type { Track, DotPosition } from '../types';
 
 const PREVIEW_SEEK_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
 
-// Format milliseconds as mm:ss
-function formatTime(ms: number): string {
+// Format milliseconds as m:ss or h:mm:ss
+function formatTime(ms: number, forceHours: boolean = false): string {
   const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
+
+  if (hours > 0 || forceHours) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
@@ -388,8 +393,8 @@ export function DotsVisualization() {
           </button>
 
           {/* Current time */}
-          <span style={{ minWidth: '45px' }}>
-            {formatTime(isDragging ? dragPosition : currentPosition)}
+          <span style={{ minWidth: '55px' }}>
+            {formatTime(isDragging ? dragPosition : currentPosition, (activeTrack.duration_ms || 0) >= 3600000)}
           </span>
 
           {/* Progress bar */}
@@ -444,7 +449,7 @@ export function DotsVisualization() {
           </div>
 
           {/* Total duration */}
-          <span style={{ minWidth: '45px', opacity: 0.7 }}>
+          <span style={{ minWidth: '55px', opacity: 0.7 }}>
             {formatTime(activeTrack.duration_ms || 0)}
           </span>
         </div>
