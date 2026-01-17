@@ -394,7 +394,7 @@ export function DotsVisualization() {
 
           {/* Current time */}
           <span style={{ minWidth: '55px' }}>
-            {formatTime(isDragging ? dragPosition : currentPosition, (activeTrack.duration_ms || 0) >= 3600000)}
+            {formatTime(isDragging ? dragPosition : currentPosition)}
           </span>
 
           {/* Progress bar */}
