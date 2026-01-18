@@ -97,10 +97,13 @@ def get_progress(user_id: str) -> Dict:
         if not result.data:
             return {"current_offset": 0, "next_cursor": None}
         
-        # Check if user_id changed - if so, reset progress
+        # Check if user_id changed or is missing - if so, reset progress
         saved_user_id = result.data.get("user_id")
-        if saved_user_id and saved_user_id != user_id:
-            print(f"User ID changed from {saved_user_id} to {user_id} - resetting progress")
+        if saved_user_id != user_id:
+            if saved_user_id:
+                print(f"User ID changed from {saved_user_id} to {user_id} - resetting progress")
+            else:
+                print(f"No user_id in saved progress - resetting for {user_id}")
             reset_progress(user_id)
             return {"current_offset": 0, "next_cursor": None, "user_id": user_id}
         
