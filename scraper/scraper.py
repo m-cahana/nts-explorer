@@ -87,20 +87,34 @@ async def get_user_id(session: aiohttp.ClientSession, client_id: str, username: 
         return data["id"]
 
 
-def get_progress() -> Dict:
-    """Get saved progress from Supabase for resume capability."""
+def get_progress(user_id: str) -> Dict:
+    """Get saved progress from Supabase for resume capability.
+    
+    Auto-resets if the user_id has changed since last run.
+    """
     try:
         result = supabase.table("scrape_progress").select("*").eq("id", 1).single().execute()
-        return result.data if result.data else {"current_offset": 0, "next_cursor": None}
+        if not result.data:
+            return {"current_offset": 0, "next_cursor": None}
+        
+        # Check if user_id changed - if so, reset progress
+        saved_user_id = result.data.get("user_id")
+        if saved_user_id and saved_user_id != user_id:
+            print(f"User ID changed from {saved_user_id} to {user_id} - resetting progress")
+            reset_progress(user_id)
+            return {"current_offset": 0, "next_cursor": None, "user_id": user_id}
+        
+        return result.data
     except Exception:
         return {"current_offset": 0, "next_cursor": None}
 
 
-def save_progress(total_scraped: int, next_cursor: Optional[str] = None):
+def save_progress(total_scraped: int, user_id: str, next_cursor: Optional[str] = None):
     """Save current progress to Supabase."""
     data = {
         "id": 1,
         "current_offset": total_scraped,
+        "user_id": user_id,
         "updated_at": datetime.utcnow().isoformat()
     }
     if next_cursor:
@@ -108,14 +122,17 @@ def save_progress(total_scraped: int, next_cursor: Optional[str] = None):
     supabase.table("scrape_progress").upsert(data).execute()
 
 
-def reset_progress():
+def reset_progress(user_id: str = None):
     """Reset progress to start fresh."""
-    supabase.table("scrape_progress").upsert({
+    data = {
         "id": 1,
         "current_offset": 0,
         "next_cursor": None,
         "updated_at": datetime.utcnow().isoformat()
-    }).execute()
+    }
+    if user_id:
+        data["user_id"] = user_id
+    supabase.table("scrape_progress").upsert(data).execute()
     print("Progress reset to 0")
 
 
@@ -207,9 +224,6 @@ def save_tracks_batch(tracks: List[Dict]):
 
 async def scrape_all(start_fresh: bool = False):
     """Main scraping function using cursor-based pagination."""
-    if start_fresh:
-        reset_progress()
-
     async with aiohttp.ClientSession() as session:
         # 1. Discover client_id
         client_id = await get_client_id(session)
@@ -219,8 +233,11 @@ async def scrape_all(start_fresh: bool = False):
         user_id = await get_user_id(session, client_id, SOUNDCLOUD_USER_ID)
         print(f"User ID: {user_id}")
 
-        # 3. Get resume progress
-        progress = get_progress()
+        # 3. Get resume progress (auto-resets if user_id changed)
+        if start_fresh:
+            reset_progress(SOUNDCLOUD_USER_ID)
+        
+        progress = get_progress(SOUNDCLOUD_USER_ID)
         total_scraped = progress.get("current_offset", 0)
         saved_cursor = progress.get("next_cursor")
 
@@ -278,7 +295,7 @@ async def scrape_all(start_fresh: bool = False):
 
             # 9. Update progress WITH cursor for true resume capability
             total_scraped += len(tracks)
-            save_progress(total_scraped, next_href)
+            save_progress(total_scraped, SOUNDCLOUD_USER_ID, next_href)
 
             print(f"  Progress saved. Total scraped: {total_scraped}")
 
