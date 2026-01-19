@@ -17,7 +17,7 @@ interface Props {
   onClick: (trackId: number) => void;
 }
 
-const TILE_SIZE = 40;
+const TILE_SIZE = 80;
 const HOVER_SCALE = 1.5;
 const SPACE_SIZE = 3000;
 const DEFAULT_COLOR = 0x333333;
