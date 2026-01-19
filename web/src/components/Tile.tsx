@@ -3,15 +3,19 @@ import { memo, useState } from 'react';
 interface Props {
   x: number; // percentage 0-100
   y: number; // percentage 0-100
+  artworkUrl: string | null;
   isActive: boolean;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
   onClick: () => void;
 }
 
-export const Dot = memo(function Dot({
+const DEFAULT_BG_COLOR = '#333333';
+
+export const Tile = memo(function Tile({
   x,
   y,
+  artworkUrl,
   isActive,
   onMouseEnter,
   onMouseLeave,
@@ -38,14 +42,18 @@ export const Dot = memo(function Dot({
         position: 'absolute',
         left: `${x}%`,
         top: `${y}%`,
-        width: '8px',
-        height: '8px',
-        borderRadius: '50%',
-        backgroundColor: isActive ? '#ff0000' : '#000000',
+        width: '10px',
+        height: '10px',
+        backgroundColor: DEFAULT_BG_COLOR,
+        backgroundImage: artworkUrl ? `url(${artworkUrl})` : 'none',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
         cursor: 'pointer',
         transform: `translate(-50%, -50%) scale(${isHovered || isActive ? 5 : 1})`,
-        transition: 'background-color 0.15s ease, transform 0.1s ease',
+        transition: 'transform 0.1s ease',
         zIndex: isHovered || isActive ? 10 : 1,
+        border: isActive ? '1px solid #ff0000' : 'none',
+        boxSizing: 'border-box',
       }}
     />
   );

@@ -1,14 +1,13 @@
 export interface Track {
   id: number;
-  episode_alias: string;
-  show_name: string | null;
-  title: string;           // maps to nts_episodes.name
-  permalink_url: string;   // maps to nts_episodes.soundcloud_url
-  artwork_url: string | null; // maps to nts_episodes.picture_url
-  genres: string[] | null;
-  moods: string[] | null;
-  location_short: string | null;
-  duration_ms?: number;    // fetched from SoundCloud widget at runtime
+  soundcloud_id: number;
+  title: string;
+  permalink_url: string;
+  artwork_url: string | null;
+  duration_ms: number | null;
+  genre_tags: string[] | null;
+  play_count: number | null;
+  is_streamable: boolean;
 }
 
 export interface DotPosition {

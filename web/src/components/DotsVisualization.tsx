@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTracks } from '../hooks/useTracks';
-import { Dot } from './Dot';
+import { Tile } from './Tile';
 import { SoundCloudPlayer } from './SoundCloudPlayer';
 import type { SoundCloudPlayerHandle } from './SoundCloudPlayer';
 import type { Track, DotPosition } from '../types';
@@ -326,16 +326,17 @@ export function DotsVisualization() {
         ref={previewPlayerRef}
       />
 
-      {/* Dots */}
+      {/* Tiles */}
       {tracks.map(track => {
         const pos = positions.get(track.id);
         if (!pos) return null;
 
         return (
-          <Dot
+          <Tile
             key={track.id}
             x={pos.x}
             y={pos.y}
+            artworkUrl={track.artwork_url}
             isActive={track.id === activeTrackId}
             onMouseEnter={() => handleHoverStart(track.id)}
             onMouseLeave={handleHoverEnd}
