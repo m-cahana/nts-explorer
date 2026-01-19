@@ -1,11 +1,66 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
+import * as THREE from 'three';
 import { useTracks } from '../hooks/useTracks';
-import { TileCanvas } from './TileCanvas';
+import { TileCloud } from './TileCloud';
 import { SoundCloudPlayer } from './SoundCloudPlayer';
 import type { SoundCloudPlayerHandle } from './SoundCloudPlayer';
-import type { Track, DotPosition } from '../types';
+import type { Track } from '../types';
 
 const PREVIEW_SEEK_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+// WASD keyboard controls for camera movement
+function CameraKeyboard() {
+  const { camera } = useThree();
+  const keys = useRef<Set<string>>(new Set());
+  const moveSpeed = 5;
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      keys.current.add(e.key.toLowerCase());
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keys.current.delete(e.key.toLowerCase());
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
+  useFrame(() => {
+    const direction = new THREE.Vector3();
+    const right = new THREE.Vector3();
+
+    camera.getWorldDirection(direction);
+    right.crossVectors(direction, camera.up).normalize();
+
+    if (keys.current.has('w')) {
+      camera.position.addScaledVector(direction, moveSpeed);
+    }
+    if (keys.current.has('s')) {
+      camera.position.addScaledVector(direction, -moveSpeed);
+    }
+    if (keys.current.has('a')) {
+      camera.position.addScaledVector(right, -moveSpeed);
+    }
+    if (keys.current.has('d')) {
+      camera.position.addScaledVector(right, moveSpeed);
+    }
+    if (keys.current.has('q') || keys.current.has(' ')) {
+      camera.position.y += moveSpeed;
+    }
+    if (keys.current.has('e') || keys.current.has('shift')) {
+      camera.position.y -= moveSpeed;
+    }
+  });
+
+  return null;
+}
 
 // Format milliseconds as m:ss or h:mm:ss
 function formatTime(ms: number, forceHours: boolean = false): string {
@@ -18,28 +73,6 @@ function formatTime(ms: number, forceHours: boolean = false): string {
     return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   }
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-}
-
-// Seeded random for consistent positions across renders
-function seededRandom(seed: number) {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-}
-
-function generatePositions(tracks: Track[]): Map<number, DotPosition> {
-  const positions = new Map<number, DotPosition>();
-
-  tracks.forEach((track, index) => {
-    // Use track.id as seed for consistent positioning
-    const seed = track.id;
-    positions.set(track.id, {
-      id: track.id,
-      x: seededRandom(seed) * 90 + 5,      // 5-95% to avoid edges
-      y: seededRandom(seed * 2) * 70 + 10, // 10-80% to avoid top/bottom
-    });
-  });
-
-  return positions;
 }
 
 export function DotsVisualization() {
@@ -59,8 +92,12 @@ export function DotsVisualization() {
   const positionIntervalRef = useRef<number | null>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
 
-  // Generate random positions for each dot (memoized)
-  const positions = useMemo(() => generatePositions(tracks), [tracks]);
+  // Filter to random subset of 4k tracks for performance
+  const filteredTracks = useMemo(() => {
+    if (tracks.length <= 4000) return tracks;
+    const shuffled = [...tracks].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 4000);
+  }, [tracks]);
 
   // Get track by ID
   const getTrack = useCallback((id: number): Track | undefined => {
@@ -326,15 +363,31 @@ export function DotsVisualization() {
         ref={previewPlayerRef}
       />
 
-      {/* Tile Canvas */}
-      <TileCanvas
-        tracks={tracks}
-        positions={positions}
-        activeTrackId={activeTrackId}
-        onHoverStart={handleHoverStart}
-        onHoverEnd={handleHoverEnd}
-        onClick={handleClick}
-      />
+      {/* 3D Tile Cloud */}
+      <Canvas
+        camera={{ position: [0, 0, 400], fov: 60 }}
+        style={{ position: 'absolute', top: 0, left: 0 }}
+      >
+        <color attach="background" args={['#f5f5f5']} />
+        <ambientLight intensity={1} />
+        <OrbitControls
+          enableDamping
+          dampingFactor={0.05}
+          minDistance={10}
+          maxDistance={2000}
+          enablePan
+          panSpeed={2}
+          zoomSpeed={1.5}
+        />
+        <CameraKeyboard />
+        <TileCloud
+          tracks={filteredTracks}
+          activeTrackId={activeTrackId}
+          onHoverStart={handleHoverStart}
+          onHoverEnd={handleHoverEnd}
+          onClick={handleClick}
+        />
+      </Canvas>
 
       {/* Track info overlay - right aligned */}
       {displayTrack && (
@@ -465,7 +518,7 @@ export function DotsVisualization() {
         borderRadius: '4px',
         fontSize: '12px',
       }}>
-        {tracks.length} tracks
+        {filteredTracks.length} tracks
       </div>
     </div>
   );
