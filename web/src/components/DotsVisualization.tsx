@@ -1,66 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
-import * as THREE from 'three';
 import { useTracks } from '../hooks/useTracks';
-import { TileCloud } from './TileCloud';
+import { PixiTileCloud } from './PixiTileCloud';
 import { SoundCloudPlayer } from './SoundCloudPlayer';
 import type { SoundCloudPlayerHandle } from './SoundCloudPlayer';
 import type { Track } from '../types';
 
 const PREVIEW_SEEK_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
-
-// WASD keyboard controls for camera movement
-function CameraKeyboard() {
-  const { camera } = useThree();
-  const keys = useRef<Set<string>>(new Set());
-  const moveSpeed = 5;
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      keys.current.add(e.key.toLowerCase());
-    };
-    const handleKeyUp = (e: KeyboardEvent) => {
-      keys.current.delete(e.key.toLowerCase());
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, []);
-
-  useFrame(() => {
-    const direction = new THREE.Vector3();
-    const right = new THREE.Vector3();
-
-    camera.getWorldDirection(direction);
-    right.crossVectors(direction, camera.up).normalize();
-
-    if (keys.current.has('w')) {
-      camera.position.addScaledVector(direction, moveSpeed);
-    }
-    if (keys.current.has('s')) {
-      camera.position.addScaledVector(direction, -moveSpeed);
-    }
-    if (keys.current.has('a')) {
-      camera.position.addScaledVector(right, -moveSpeed);
-    }
-    if (keys.current.has('d')) {
-      camera.position.addScaledVector(right, moveSpeed);
-    }
-    if (keys.current.has('q') || keys.current.has(' ')) {
-      camera.position.y += moveSpeed;
-    }
-    if (keys.current.has('e') || keys.current.has('shift')) {
-      camera.position.y -= moveSpeed;
-    }
-  });
-
-  return null;
-}
 
 // Format milliseconds as m:ss or h:mm:ss
 function formatTime(ms: number, forceHours: boolean = false): string {
@@ -79,7 +24,7 @@ export function DotsVisualization() {
   const { tracks, loading, error } = useTracks();
   const [activeTrackId, setActiveTrackId] = useState<number | null>(null);
   const [previewTrackId, setPreviewTrackId] = useState<number | null>(null);
-  const [isPaused, setIsPaused] = useState(false);
+  const [isPaused, setIsPaused] = useState(true); // Start paused (browser blocks autoplay)
   const [currentPosition, setCurrentPosition] = useState(0);
   const [savedPosition, setSavedPosition] = useState(0);
   const [isMainPlayerReady, setIsMainPlayerReady] = useState(false);
@@ -159,14 +104,23 @@ export function DotsVisualization() {
   }, [isPaused, activeTrackId, previewTrackId]);
 
   // Select a random track on first load (wait for main player to be ready)
+  // Don't auto-play due to browser autoplay restrictions - just load it
   useEffect(() => {
     if (tracks.length > 0 && activeTrackId === null && isMainPlayerReady) {
       const randomIndex = Math.floor(Math.random() * tracks.length);
       const randomTrack = tracks[randomIndex];
       setActiveTrackId(randomTrack.id);
-      playMainTrack(randomTrack.id);
+      // Just load the track, don't play (browser blocks autoplay)
+      if (mainPlayerRef.current) {
+        mainPlayerRef.current.loadTrack(randomTrack.permalink_url);
+        setTimeout(() => {
+          mainPlayerRef.current?.getDuration((duration) => {
+            setTrackDuration(duration);
+          });
+        }, 1000);
+      }
     }
-  }, [tracks, activeTrackId, isMainPlayerReady, playMainTrack]);
+  }, [tracks, activeTrackId, isMainPlayerReady]);
 
   // Handle hover start (with 100ms debounce to prevent race with click)
   const handleHoverStart = useCallback((trackId: number) => {
@@ -363,31 +317,14 @@ export function DotsVisualization() {
         ref={previewPlayerRef}
       />
 
-      {/* 3D Tile Cloud */}
-      <Canvas
-        camera={{ position: [0, 0, 400], fov: 60 }}
-        style={{ position: 'absolute', top: 0, left: 0 }}
-      >
-        <color attach="background" args={['#f5f5f5']} />
-        <ambientLight intensity={1} />
-        <OrbitControls
-          enableDamping
-          dampingFactor={0.05}
-          minDistance={10}
-          maxDistance={2000}
-          enablePan
-          panSpeed={2}
-          zoomSpeed={1.5}
-        />
-        <CameraKeyboard />
-        <TileCloud
-          tracks={filteredTracks}
-          activeTrackId={activeTrackId}
-          onHoverStart={handleHoverStart}
-          onHoverEnd={handleHoverEnd}
-          onClick={handleClick}
-        />
-      </Canvas>
+      {/* Pixi.js Tile Cloud */}
+      <PixiTileCloud
+        tracks={filteredTracks}
+        activeTrackId={activeTrackId}
+        onHoverStart={handleHoverStart}
+        onHoverEnd={handleHoverEnd}
+        onClick={handleClick}
+      />
 
       {/* Track info overlay - right aligned */}
       {displayTrack && (
