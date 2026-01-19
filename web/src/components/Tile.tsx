@@ -12,6 +12,11 @@ interface Props {
 
 const DEFAULT_BG_COLOR = '#333333';
 
+function getSmallArtworkUrl(url: string | null): string | null {
+  if (!url) return null;
+  return url.replace(/-large\./, '-t50x50.').replace(/-t\d+x\d+\./, '-t50x50.');
+}
+
 export const Tile = memo(function Tile({
   x,
   y,
@@ -45,7 +50,7 @@ export const Tile = memo(function Tile({
         width: '10px',
         height: '10px',
         backgroundColor: DEFAULT_BG_COLOR,
-        backgroundImage: artworkUrl ? `url(${artworkUrl})` : 'none',
+        backgroundImage: artworkUrl ? `url(${getSmallArtworkUrl(artworkUrl)})` : 'none',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         cursor: 'pointer',
