@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTracks } from '../hooks/useTracks';
-import { ReactTileCloud } from './ReactTileCloud';
+import { ThreeTileCloud } from './ThreeTileCloud';
 import { SoundCloudPlayer } from './SoundCloudPlayer';
 import type { SoundCloudPlayerHandle } from './SoundCloudPlayer';
 import type { Track } from '../types';
@@ -360,12 +360,13 @@ export function DotsVisualization() {
         transition: 'opacity 0.5s ease-in',
         transitionDelay: hasUserInteracted ? '0.3s' : '0s',
       }}>
-        <ReactTileCloud
+        <ThreeTileCloud
           tracks={filteredTracks}
           activeTrackId={activeTrackId}
           onHoverStart={handleHoverStart}
           onHoverEnd={handleHoverEnd}
           onClick={handleClick}
+          isReady={hasUserInteracted}
         />
       </div>
 
