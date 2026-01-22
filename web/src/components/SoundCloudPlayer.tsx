@@ -78,6 +78,7 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, Props>(
     const widgetRef = useRef<SCWidget | null>(null);
     const isReadyRef = useRef(false);
     const onProgressRef = useRef(onProgress);
+    const pendingSeekRef = useRef<number | null>(null); // Track pending seek position
 
     // Keep onProgress ref updated
     useEffect(() => {
@@ -109,16 +110,23 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, Props>(
 
     const loadTrack = useCallback((url: string, seekToMs?: number) => {
       if (widgetRef.current) {
+        // Store seek position in ref (not closure) to avoid race conditions
+        pendingSeekRef.current = seekToMs && seekToMs > 0 ? seekToMs : null;
+
+        // Unbind any existing play handler before binding new one
+        widgetRef.current.unbind('play');
+
         // Handle play event - seek if needed and fetch duration
         const onPlay = () => {
-          if (seekToMs && seekToMs > 0) {
-            widgetRef.current?.seekTo(seekToMs);
+          // Read from ref, not closure, to get the most recent value
+          if (pendingSeekRef.current !== null) {
+            widgetRef.current?.seekTo(pendingSeekRef.current);
+            pendingSeekRef.current = null;
           }
           // Fetch duration immediately when track starts playing
           widgetRef.current?.getDuration((duration) => {
             onLoad?.(duration);
           });
-          widgetRef.current?.unbind('play');
         };
         widgetRef.current.bind('play', onPlay);
         widgetRef.current.load(url, { auto_play: true, show_artwork: false });
