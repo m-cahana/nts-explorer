@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTracks } from '../hooks/useTracks';
-import { PixiTileCloud } from './PixiTileCloud';
+import { ReactTileCloud } from './ReactTileCloud';
 import { SoundCloudPlayer } from './SoundCloudPlayer';
 import type { SoundCloudPlayerHandle } from './SoundCloudPlayer';
 import type { Track } from '../types';
@@ -21,7 +21,7 @@ function formatTime(ms: number, forceHours: boolean = false): string {
 }
 
 export function DotsVisualization() {
-  const { tracks, loading, error } = useTracks();
+  const { tracks, loading, progress, error } = useTracks();
   const [activeTrackId, setActiveTrackId] = useState<number | null>(null);
   const [previewTrackId, setPreviewTrackId] = useState<number | null>(null);
   const [isPaused, setIsPaused] = useState(true); // Start paused (browser blocks autoplay)
@@ -31,6 +31,9 @@ export function DotsVisualization() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPosition, setDragPosition] = useState(0);
   const [trackDuration, setTrackDuration] = useState(0);
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false); // Triggers fade-in of welcome text
+  const [isExiting, setIsExiting] = useState(false); // Triggers fade-out of overlay
   const mainPlayerRef = useRef<SoundCloudPlayerHandle>(null);
   const previewPlayerRef = useRef<SoundCloudPlayerHandle>(null);
   const hoverTimeoutRef = useRef<number | null>(null);
@@ -56,13 +59,7 @@ export function DotsVisualization() {
       mainPlayerRef.current.loadTrack(track.permalink_url, seekToMs);
       setIsPaused(false);
       setCurrentPosition(seekToMs || 0);
-      setTrackDuration(0); // Reset until we get the new duration
-      // Fetch duration after a short delay (widget needs time to load)
-      setTimeout(() => {
-        mainPlayerRef.current?.getDuration((duration) => {
-          setTrackDuration(duration);
-        });
-      }, 1000);
+      setTrackDuration(0); // Reset until we get the new duration via onLoad
     }
   }, [getTrack]);
 
@@ -103,24 +100,41 @@ export function DotsVisualization() {
     };
   }, [isPaused, activeTrackId, previewTrackId]);
 
-  // Select a random track on first load (wait for main player to be ready)
-  // Don't auto-play due to browser autoplay restrictions - just load it
+  // Select a random track on first load (don't play until user interacts)
   useEffect(() => {
     if (tracks.length > 0 && activeTrackId === null && isMainPlayerReady) {
       const randomIndex = Math.floor(Math.random() * tracks.length);
       const randomTrack = tracks[randomIndex];
       setActiveTrackId(randomTrack.id);
-      // Just load the track, don't play (browser blocks autoplay)
+      // Just load the track, don't play yet (wait for user interaction)
       if (mainPlayerRef.current) {
         mainPlayerRef.current.loadTrack(randomTrack.permalink_url);
-        setTimeout(() => {
-          mainPlayerRef.current?.getDuration((duration) => {
-            setTrackDuration(duration);
-          });
-        }, 1000);
       }
     }
   }, [tracks, activeTrackId, isMainPlayerReady]);
+
+  // Trigger welcome text fade-in when loading completes and track is ready
+  useEffect(() => {
+    if (!loading && isMainPlayerReady && activeTrackId !== null && !showWelcome) {
+      // Small delay before showing welcome text for smooth transition
+      const timer = setTimeout(() => setShowWelcome(true), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, isMainPlayerReady, activeTrackId, showWelcome]);
+
+  // Handle user clicking the welcome overlay to start playback
+  const handleStartPlayback = useCallback(() => {
+    if (!showWelcome) return; // Don't allow click during loading
+    setIsExiting(true);
+    // Wait for fade-out animation before showing main content
+    setTimeout(() => {
+      setHasUserInteracted(true);
+      if (mainPlayerRef.current) {
+        mainPlayerRef.current.play();
+        setIsPaused(false);
+      }
+    }, 500);
+  }, [showWelcome]);
 
   // Handle hover start (with 100ms debounce to prevent race with click)
   const handleHoverStart = useCallback((trackId: number) => {
@@ -132,7 +146,7 @@ export function DotsVisualization() {
     // Don't preview if it's already the active track
     if (trackId === activeTrackId) return;
 
-    // Set timeout to play preview
+    // Set timeout to play preview (50ms to distinguish from click)
     hoverTimeoutRef.current = window.setTimeout(() => {
       // Save current position from main player before switching
       if (mainPlayerRef.current) {
@@ -146,7 +160,7 @@ export function DotsVisualization() {
       setPreviewTrackId(trackId);
       // Play preview on separate player (seek 5 min in to skip intro)
       playPreviewTrack(trackId, PREVIEW_SEEK_MS);
-    }, 100);
+    }, 50);
   }, [activeTrackId, playPreviewTrack]);
 
   // Handle hover end
@@ -269,20 +283,6 @@ export function DotsVisualization() {
     };
   }, [isDragging, getPositionFromMouse, handleSeek]);
 
-  if (loading) {
-    return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        color: '#666'
-      }}>
-        Loading tracks...
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div style={{
@@ -290,12 +290,16 @@ export function DotsVisualization() {
         justifyContent: 'center',
         alignItems: 'center',
         height: '100vh',
-        color: '#ff0000'
+        color: '#ff0000',
+        backgroundColor: 'white',
       }}>
         Error: {error}
       </div>
     );
   }
+
+  // Determine if we should show the overlay (loading or waiting for interaction)
+  const showOverlay = !hasUserInteracted;
 
   return (
     <div style={{
@@ -311,23 +315,39 @@ export function DotsVisualization() {
         ref={mainPlayerRef}
         onTrackEnd={handleTrackEnd}
         onReady={() => setIsMainPlayerReady(true)}
+        onLoad={(duration) => setTrackDuration(duration)}
       />
       <SoundCloudPlayer
         id="preview-player"
         ref={previewPlayerRef}
       />
 
-      {/* Pixi.js Tile Cloud */}
-      <PixiTileCloud
-        tracks={filteredTracks}
-        activeTrackId={activeTrackId}
-        onHoverStart={handleHoverStart}
-        onHoverEnd={handleHoverEnd}
-        onClick={handleClick}
-      />
+      {/* Centered Canvas Area */}
+      <div style={{
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: '80vw',
+        height: '80vh',
+        overflow: 'hidden',
+        borderRadius: '12px',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+        opacity: hasUserInteracted ? 1 : 0,
+        transition: 'opacity 0.5s ease-in',
+        transitionDelay: hasUserInteracted ? '0.3s' : '0s',
+      }}>
+        <ReactTileCloud
+          tracks={filteredTracks}
+          activeTrackId={activeTrackId}
+          onHoverStart={handleHoverStart}
+          onHoverEnd={handleHoverEnd}
+          onClick={handleClick}
+        />
+      </div>
 
       {/* Track info overlay - right aligned */}
-      {displayTrack && (
+      {displayTrack && hasUserInteracted && (
         <div style={{
           position: 'fixed',
           bottom: '20px',
@@ -349,7 +369,7 @@ export function DotsVisualization() {
       )}
 
       {/* Playback controls pill */}
-      {activeTrack && (
+      {activeTrack && hasUserInteracted && (
         <div style={{
           position: 'fixed',
           bottom: '20px',
@@ -445,18 +465,89 @@ export function DotsVisualization() {
       )}
 
       {/* Track count */}
-      <div style={{
-        position: 'fixed',
-        top: '20px',
-        right: '20px',
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
-        color: 'white',
-        padding: '8px 12px',
-        borderRadius: '4px',
-        fontSize: '12px',
-      }}>
-        {filteredTracks.length} tracks
-      </div>
+      {hasUserInteracted && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          color: 'white',
+          padding: '8px 12px',
+          borderRadius: '4px',
+          fontSize: '12px',
+        }}>
+          {filteredTracks.length} tracks
+        </div>
+      )}
+
+      {/* Unified loading/welcome overlay */}
+      {showOverlay && (
+        <div
+          onClick={handleStartPlayback}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'white',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            cursor: showWelcome ? 'pointer' : 'default',
+            zIndex: 1000,
+            opacity: isExiting ? 0 : 1,
+            transition: 'opacity 0.5s ease-out',
+          }}
+        >
+          {/* Loading percentage */}
+          <div style={{
+            opacity: showWelcome ? 0 : 1,
+            transition: 'opacity 0.3s ease-out',
+            position: 'absolute',
+          }}>
+            <span style={{
+              color: '#000',
+              fontSize: '48px',
+              fontWeight: 200,
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+              letterSpacing: '-2px',
+            }}>
+              {progress}%
+            </span>
+          </div>
+
+          {/* Welcome text */}
+          <div style={{
+            opacity: showWelcome ? 1 : 0,
+            transition: 'opacity 0.5s ease-in',
+            transitionDelay: showWelcome ? '0.2s' : '0s',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+          }}>
+            <h1 style={{
+              color: '#000',
+              fontSize: '48px',
+              fontWeight: 200,
+              marginBottom: '16px',
+              letterSpacing: '-1px',
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+            }}>
+              NTS Explorer
+            </h1>
+            <p style={{
+              color: 'rgba(0, 0, 0, 0.5)',
+              fontSize: '16px',
+              fontWeight: 400,
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+            }}>
+              Click anywhere to explore
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -33,6 +33,7 @@ interface Props {
   id?: string;
   onTrackEnd?: () => void;
   onReady?: () => void;
+  onLoad?: (duration: number) => void;  // Called when track loads with duration
 }
 
 // Global script loading state (shared across all instances)
@@ -66,7 +67,7 @@ function loadScriptOnce(callback: () => void) {
 }
 
 export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, Props>(
-  ({ id = 'sc-widget', onTrackEnd, onReady }, ref) => {
+  ({ id = 'sc-widget', onTrackEnd, onReady, onLoad }, ref) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const widgetRef = useRef<SCWidget | null>(null);
     const isReadyRef = useRef(false);
@@ -91,16 +92,21 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, Props>(
 
     const loadTrack = useCallback((url: string, seekToMs?: number) => {
       if (widgetRef.current) {
-        if (seekToMs && seekToMs > 0) {
-          const onPlay = () => {
+        // Handle play event - seek if needed and fetch duration
+        const onPlay = () => {
+          if (seekToMs && seekToMs > 0) {
             widgetRef.current?.seekTo(seekToMs);
-            widgetRef.current?.unbind('play');
-          };
-          widgetRef.current.bind('play', onPlay);
-        }
+          }
+          // Fetch duration immediately when track starts playing
+          widgetRef.current?.getDuration((duration) => {
+            onLoad?.(duration);
+          });
+          widgetRef.current?.unbind('play');
+        };
+        widgetRef.current.bind('play', onPlay);
         widgetRef.current.load(url, { auto_play: true, show_artwork: false });
       }
-    }, []);
+    }, [onLoad]);
 
     const pause = useCallback(() => {
       if (widgetRef.current) {
