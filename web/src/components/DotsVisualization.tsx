@@ -6,6 +6,14 @@ import type { SoundCloudPlayerHandle } from './SoundCloudPlayer';
 import type { Track } from '../types';
 
 const PREVIEW_SEEK_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
+const STORAGE_KEY = 'nts-explorer-playback';
+const SAVE_INTERVAL_MS = 5000; // Save every 5 seconds
+
+interface PersistedPlayback {
+  trackId: number;
+  position: number;
+  timestamp: number;
+}
 
 // Format milliseconds as m:ss or h:mm:ss
 function formatTime(ms: number, forceHours: boolean = false): string {
@@ -36,9 +44,8 @@ export function DotsVisualization() {
   const [isExiting, setIsExiting] = useState(false); // Triggers fade-out of overlay
   const mainPlayerRef = useRef<SoundCloudPlayerHandle>(null);
   const previewPlayerRef = useRef<SoundCloudPlayerHandle>(null);
-  const hoverTimeoutRef = useRef<number | null>(null);
-  const positionIntervalRef = useRef<number | null>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
+  const currentPositionRef = useRef(0); // For synchronous access to position
 
   // Filter to random subset of 4k tracks for performance
   const filteredTracks = useMemo(() => {
@@ -71,47 +78,83 @@ export function DotsVisualization() {
     }
   }, [getTrack]);
 
-  // Poll position every 500ms when playing
-  useEffect(() => {
-    if (isPaused || !activeTrackId) {
-      if (positionIntervalRef.current) {
-        clearInterval(positionIntervalRef.current);
-        positionIntervalRef.current = null;
-      }
-      return;
+  // Handle progress updates from main player (event-based, not polling)
+  const handleMainProgress = useCallback((position: number) => {
+    // Only update if we're not previewing a different track
+    if (previewTrackId === null) {
+      setCurrentPosition(position);
+      currentPositionRef.current = position;
     }
+  }, [previewTrackId]);
 
-    // Poll the appropriate player based on whether we're previewing
-    const player = previewTrackId ? previewPlayerRef.current : mainPlayerRef.current;
+  // Handle progress updates from preview player
+  const handlePreviewProgress = useCallback((position: number) => {
+    // Only update if we're actively previewing
+    if (previewTrackId !== null) {
+      setCurrentPosition(position);
+    }
+  }, [previewTrackId]);
 
-    positionIntervalRef.current = window.setInterval(() => {
-      if (player) {
-        player.getPosition((pos) => {
-          setCurrentPosition(pos);
-        });
-      }
-    }, 500);
-
-    return () => {
-      if (positionIntervalRef.current) {
-        clearInterval(positionIntervalRef.current);
-        positionIntervalRef.current = null;
-      }
-    };
-  }, [isPaused, activeTrackId, previewTrackId]);
-
-  // Select a random track on first load (don't play until user interacts)
+  // Restore from localStorage or select random track on first load
   useEffect(() => {
     if (tracks.length > 0 && activeTrackId === null && isMainPlayerReady) {
+      // Try to restore from localStorage
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const persisted: PersistedPlayback = JSON.parse(stored);
+          // Check if not stale (24 hours)
+          const isStale = Date.now() - persisted.timestamp > 24 * 60 * 60 * 1000;
+          const track = tracks.find(t => t.id === persisted.trackId);
+
+          if (!isStale && track) {
+            setActiveTrackId(persisted.trackId);
+            setCurrentPosition(persisted.position);
+            currentPositionRef.current = persisted.position;
+            if (mainPlayerRef.current) {
+              mainPlayerRef.current.loadTrack(track.permalink_url, persisted.position);
+            }
+            return;
+          }
+        }
+      } catch {
+        // Ignore localStorage errors
+      }
+
+      // No valid persisted state, select random track
       const randomIndex = Math.floor(Math.random() * tracks.length);
       const randomTrack = tracks[randomIndex];
       setActiveTrackId(randomTrack.id);
-      // Just load the track, don't play yet (wait for user interaction)
       if (mainPlayerRef.current) {
         mainPlayerRef.current.loadTrack(randomTrack.permalink_url);
       }
     }
   }, [tracks, activeTrackId, isMainPlayerReady]);
+
+  // Save playback state to localStorage periodically
+  useEffect(() => {
+    if (!activeTrackId || isPaused || !hasUserInteracted) return;
+
+    const saveState = () => {
+      const state: PersistedPlayback = {
+        trackId: activeTrackId,
+        position: currentPositionRef.current,
+        timestamp: Date.now(),
+      };
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch {
+        // Ignore localStorage errors
+      }
+    };
+
+    // Save immediately on track change
+    saveState();
+
+    // Then save periodically
+    const interval = setInterval(saveState, SAVE_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [activeTrackId, isPaused, hasUserInteracted]);
 
   // Trigger welcome text fade-in when loading completes and track is ready
   useEffect(() => {
@@ -136,41 +179,26 @@ export function DotsVisualization() {
     }, 500);
   }, [showWelcome]);
 
-  // Handle hover start (with 100ms debounce to prevent race with click)
+  // Handle hover start - instant preview, no delay
   const handleHoverStart = useCallback((trackId: number) => {
-    // Clear any existing timeout
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-    }
-
     // Don't preview if it's already the active track
     if (trackId === activeTrackId) return;
 
-    // Set timeout to play preview (50ms to distinguish from click)
-    hoverTimeoutRef.current = window.setTimeout(() => {
-      // Save current position from main player before switching
-      if (mainPlayerRef.current) {
-        mainPlayerRef.current.getPosition((pos) => {
-          setSavedPosition(pos);
-        });
-        // Pause main player
-        mainPlayerRef.current.pause();
-      }
+    // Save current position synchronously from ref (no async callback race)
+    setSavedPosition(currentPositionRef.current);
 
-      setPreviewTrackId(trackId);
-      // Play preview on separate player (seek 5 min in to skip intro)
-      playPreviewTrack(trackId, PREVIEW_SEEK_MS);
-    }, 50);
+    // Pause main player
+    if (mainPlayerRef.current) {
+      mainPlayerRef.current.pause();
+    }
+
+    setPreviewTrackId(trackId);
+    // Play preview on separate player (seek 5 min in to skip intro)
+    playPreviewTrack(trackId, PREVIEW_SEEK_MS);
   }, [activeTrackId, playPreviewTrack]);
 
   // Handle hover end
   const handleHoverEnd = useCallback(() => {
-    // Clear the timeout
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
-
     // If we were previewing, stop preview and resume main
     if (previewTrackId !== null) {
       // Pause preview player
@@ -194,12 +222,6 @@ export function DotsVisualization() {
 
   // Handle click - set as new active track
   const handleClick = useCallback((trackId: number) => {
-    // Clear any hover timeout
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
-
     // Pause preview player if it was playing
     if (previewPlayerRef.current) {
       previewPlayerRef.current.pause();
@@ -316,10 +338,12 @@ export function DotsVisualization() {
         onTrackEnd={handleTrackEnd}
         onReady={() => setIsMainPlayerReady(true)}
         onLoad={(duration) => setTrackDuration(duration)}
+        onProgress={handleMainProgress}
       />
       <SoundCloudPlayer
         id="preview-player"
         ref={previewPlayerRef}
+        onProgress={handlePreviewProgress}
       />
 
       {/* Centered Canvas Area */}

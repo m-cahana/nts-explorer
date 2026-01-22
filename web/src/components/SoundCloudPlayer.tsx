@@ -14,10 +14,15 @@ interface SCWidget {
   play(): void;
   pause(): void;
   seekTo(milliseconds: number): void;
-  bind(event: string, callback: () => void): void;
+  bind(event: string, callback: (data?: unknown) => void): void;
   unbind(event: string): void;
   getPosition(callback: (position: number) => void): void;
   getDuration(callback: (duration: number) => void): void;
+}
+
+interface PlayProgressData {
+  currentPosition: number;
+  relativePosition: number;
 }
 
 export interface SoundCloudPlayerHandle {
@@ -34,6 +39,7 @@ interface Props {
   onTrackEnd?: () => void;
   onReady?: () => void;
   onLoad?: (duration: number) => void;  // Called when track loads with duration
+  onProgress?: (position: number) => void;  // Called on playback progress
 }
 
 // Global script loading state (shared across all instances)
@@ -67,10 +73,16 @@ function loadScriptOnce(callback: () => void) {
 }
 
 export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, Props>(
-  ({ id = 'sc-widget', onTrackEnd, onReady, onLoad }, ref) => {
+  ({ id = 'sc-widget', onTrackEnd, onReady, onLoad, onProgress }, ref) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const widgetRef = useRef<SCWidget | null>(null);
     const isReadyRef = useRef(false);
+    const onProgressRef = useRef(onProgress);
+
+    // Keep onProgress ref updated
+    useEffect(() => {
+      onProgressRef.current = onProgress;
+    }, [onProgress]);
 
     // Initialize widget when script is loaded
     useEffect(() => {
@@ -84,6 +96,11 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, Props>(
           if (onTrackEnd) {
             widgetRef.current.bind('finish', onTrackEnd);
           }
+          // Bind to playProgress for real-time position updates
+          widgetRef.current.bind('playProgress', (data) => {
+            const progressData = data as PlayProgressData;
+            onProgressRef.current?.(progressData.currentPosition);
+          });
         }
       };
 
