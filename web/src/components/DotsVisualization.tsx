@@ -323,12 +323,15 @@ export function DotsVisualization() {
   // Determine if we should show the overlay (loading or waiting for interaction)
   const showOverlay = !hasUserInteracted;
 
+  // Track is loading if we have an active track but no duration yet
+  const isTrackLoading = activeTrackId !== null && trackDuration === 0;
+
   return (
     <div style={{
       position: 'relative',
       width: '100vw',
       height: '100vh',
-      backgroundColor: '#f5f5f5',
+      backgroundColor: 'white',
       overflow: 'hidden'
     }}>
       {/* Hidden SoundCloud Players - Main and Preview */}
@@ -346,17 +349,13 @@ export function DotsVisualization() {
         onProgress={handlePreviewProgress}
       />
 
-      {/* Centered Canvas Area */}
+      {/* Full-bleed Canvas Area */}
       <div style={{
         position: 'absolute',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        width: '80vw',
-        height: '80vh',
-        overflow: 'hidden',
-        borderRadius: '12px',
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         opacity: hasUserInteracted ? 1 : 0,
         transition: 'opacity 0.5s ease-in',
         transitionDelay: hasUserInteracted ? '0.3s' : '0s',
@@ -370,137 +369,155 @@ export function DotsVisualization() {
         />
       </div>
 
-      {/* Track info overlay - right aligned */}
-      {displayTrack && hasUserInteracted && (
-        <div style={{
-          position: 'fixed',
-          bottom: '20px',
-          right: '20px',
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          color: 'white',
-          padding: '10px 16px',
-          borderRadius: '8px',
-          maxWidth: '400px',
-          fontSize: '13px',
-        }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>
-            {isPreviewingDifferentTrack ? 'Previewing' : 'Now Playing'}
-          </div>
-          <div style={{ opacity: 0.9 }}>
-            {displayTrack.title}
-          </div>
-        </div>
-      )}
-
-      {/* Playback controls pill */}
-      {activeTrack && hasUserInteracted && (
-        <div style={{
-          position: 'fixed',
-          bottom: '20px',
-          left: '20px',
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          color: 'white',
-          padding: '10px 16px',
-          borderRadius: '8px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          fontSize: '13px',
-          fontFamily: 'monospace',
-        }}>
-          {/* Play/Pause button */}
-          <button
-            onClick={togglePause}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'white',
-              cursor: 'pointer',
-              padding: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '16px',
-            }}
-          >
-            {isPaused ? '▶' : '⏸'}
-          </button>
-
-          {/* Current time */}
-          <span style={{ minWidth: '55px' }}>
-            {formatTime(isDragging ? dragPosition : currentPosition)}
-          </span>
-
-          {/* Progress bar */}
-          <div
-            ref={progressBarRef}
-            style={{
-              width: '200px',
-              height: '6px',
-              backgroundColor: 'rgba(255, 255, 255, 0.3)',
-              borderRadius: '3px',
-              cursor: 'pointer',
-              position: 'relative',
-            }}
-            onMouseDown={(e) => {
-              // Allow clicking anywhere on bar to seek
-              const rect = e.currentTarget.getBoundingClientRect();
-              const clickX = e.clientX - rect.left;
-              const percentage = clickX / rect.width;
-              const newPos = Math.floor(percentage * trackDuration);
-              setDragPosition(newPos);
-              setIsDragging(true);
-            }}
-          >
-            {/* Filled portion */}
-            <div
-              style={{
-                width: `${trackDuration ? ((isDragging ? dragPosition : currentPosition) / trackDuration) * 100 : 0}%`,
-                height: '100%',
-                backgroundColor: 'white',
-                borderRadius: '3px',
-                pointerEvents: 'none',
-              }}
-            />
-            {/* Draggable dot */}
-            <div
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: `${trackDuration ? ((isDragging ? dragPosition : currentPosition) / trackDuration) * 100 : 0}%`,
-                transform: 'translate(-50%, -50%)',
-                width: isDragging ? '14px' : '12px',
-                height: isDragging ? '14px' : '12px',
-                backgroundColor: 'white',
-                borderRadius: '50%',
-                cursor: 'grab',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                transition: isDragging ? 'none' : 'left 0.1s linear',
-                pointerEvents: 'none',
-              }}
-            />
-          </div>
-
-          {/* Total duration */}
-          <span style={{ minWidth: '55px', opacity: 0.7 }}>
-            {trackDuration ? formatTime(trackDuration) : '--:--'}
-          </span>
-        </div>
-      )}
-
-      {/* Track count */}
+      {/* Bottom right controls */}
       {hasUserInteracted && (
         <div style={{
           position: 'fixed',
-          top: '20px',
-          right: '20px',
-          backgroundColor: 'rgba(0, 0, 0, 0.6)',
-          color: 'white',
-          padding: '8px 12px',
-          borderRadius: '4px',
-          fontSize: '12px',
+          bottom: '24px',
+          right: '24px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-end',
+          gap: '8px',
         }}>
-          {filteredTracks.length} tracks
+          {/* Track info pill */}
+          {displayTrack && (
+            <div style={{
+              backgroundColor: 'white',
+              border: '1px solid #e0e0e0',
+              padding: '8px 14px',
+              borderRadius: '20px',
+              fontSize: '13px',
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+              maxWidth: '300px',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}>
+              <span style={{ color: '#999', marginRight: '8px' }}>
+                {isPreviewingDifferentTrack ? 'Previewing' : 'Playing'}
+              </span>
+              <span style={{ color: '#000' }}>
+                {displayTrack.title}
+              </span>
+            </div>
+          )}
+
+          {/* Playback controls pill */}
+          {activeTrack && (
+            <div style={{
+              backgroundColor: 'white',
+              border: '1px solid #e0e0e0',
+              padding: '6px 14px',
+              borderRadius: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              fontSize: '13px',
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+            }}>
+              {/* Play/Pause button */}
+              <button
+                onClick={togglePause}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#000',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '12px',
+                }}
+              >
+                {isPaused ? '▶' : '⏸'}
+              </button>
+
+              {/* Loading spinner or progress */}
+              {isTrackLoading ? (
+                <div style={{
+                  width: '120px',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  color: '#999',
+                  fontSize: '12px',
+                }}>
+                  <span style={{
+                    display: 'inline-block',
+                    width: '12px',
+                    height: '12px',
+                    border: '2px solid #e0e0e0',
+                    borderTopColor: '#000',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite',
+                  }} />
+                  <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+              ) : (
+                <>
+                  {/* Current time */}
+                  <span style={{ color: '#000', minWidth: '40px', fontSize: '12px' }}>
+                    {formatTime(isDragging ? dragPosition : currentPosition)}
+                  </span>
+
+                  {/* Progress bar */}
+                  <div
+                    ref={progressBarRef}
+                    style={{
+                      width: '100px',
+                      height: '4px',
+                      backgroundColor: '#e0e0e0',
+                      borderRadius: '2px',
+                      cursor: 'pointer',
+                      position: 'relative',
+                    }}
+                    onMouseDown={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const clickX = e.clientX - rect.left;
+                      const percentage = clickX / rect.width;
+                      const newPos = Math.floor(percentage * trackDuration);
+                      setDragPosition(newPos);
+                      setIsDragging(true);
+                    }}
+                  >
+                    {/* Filled portion */}
+                    <div
+                      style={{
+                        width: `${trackDuration ? ((isDragging ? dragPosition : currentPosition) / trackDuration) * 100 : 0}%`,
+                        height: '100%',
+                        backgroundColor: '#000',
+                        borderRadius: '2px',
+                        pointerEvents: 'none',
+                      }}
+                    />
+                    {/* Draggable dot */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: `${trackDuration ? ((isDragging ? dragPosition : currentPosition) / trackDuration) * 100 : 0}%`,
+                        transform: 'translate(-50%, -50%)',
+                        width: '10px',
+                        height: '10px',
+                        backgroundColor: '#000',
+                        borderRadius: '50%',
+                        cursor: 'grab',
+                        transition: isDragging ? 'none' : 'left 0.1s linear',
+                        pointerEvents: 'none',
+                      }}
+                    />
+                  </div>
+
+                  {/* Total duration */}
+                  <span style={{ color: '#999', minWidth: '40px', fontSize: '12px' }}>
+                    {formatTime(trackDuration)}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 

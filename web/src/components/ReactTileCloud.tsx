@@ -66,7 +66,7 @@ export function ReactTileCloud({
             position: 'relative',
             width: SPACE_SIZE * 2,
             height: SPACE_SIZE * 2,
-            backgroundColor: '#f5f5f5',
+            backgroundColor: 'white',
           }}
         >
           {tracks.map(track => {
@@ -87,10 +87,11 @@ export function ReactTileCloud({
                   top: pos.y - TILE_SIZE / 2,
                   width: TILE_SIZE,
                   height: TILE_SIZE,
-                  backgroundColor: '#333',
+                  backgroundColor: '#eee',
                   cursor: 'pointer',
                   transition: 'transform 0.1s ease',
-                  boxShadow: isActive ? '0 0 0 3px #ff0000' : 'none',
+                  outline: isActive ? '2px solid #000' : 'none',
+                  outlineOffset: '2px',
                 }}
                 className="tile"
               >
