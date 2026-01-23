@@ -33,6 +33,15 @@ RATE_LIMIT_DELAY = 1.0  # Seconds between individual track requests
 BATCH_DELAY = 2.0  # Seconds between batch requests
 NTS_RATE_LIMIT_DELAY = 0.5  # Seconds between NTS API requests
 
+# SoundCloud API headers (required to avoid bot detection)
+SOUNDCLOUD_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/javascript, */*; q=0.01",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://soundcloud.com/",
+    "Origin": "https://soundcloud.com",
+}
+
 # NTS API configuration
 NTS_API_BASE = "https://www.nts.live/api/v2"
 NTS_HEADERS = {
@@ -50,7 +59,7 @@ async def get_client_id(session: aiohttp.ClientSession) -> str:
     """Extract client_id from SoundCloud's JavaScript bundles."""
     print("Discovering SoundCloud client_id...")
 
-    async with session.get("https://soundcloud.com") as resp:
+    async with session.get("https://soundcloud.com", headers=SOUNDCLOUD_HEADERS) as resp:
         html = await resp.text()
 
     script_pattern = r'<script crossorigin src="(https://[^"]+\.js)"'
@@ -67,7 +76,7 @@ async def get_client_id(session: aiohttp.ClientSession) -> str:
 
     for script_url in script_urls:
         try:
-            async with session.get(script_url) as resp:
+            async with session.get(script_url, headers=SOUNDCLOUD_HEADERS) as resp:
                 js_content = await resp.text()
 
             for pattern in patterns:
@@ -90,7 +99,7 @@ async def get_user_id(session: aiohttp.ClientSession, client_id: str, username: 
         "client_id": client_id
     }
 
-    async with session.get(url, params=params) as resp:
+    async with session.get(url, params=params, headers=SOUNDCLOUD_HEADERS) as resp:
         if resp.status != 200:
             raise Exception(f"Failed to resolve user: {await resp.text()}")
         data = await resp.json()
@@ -168,7 +177,7 @@ async def fetch_tracks_page(
     # Ensure client_id is in the URL
     url = add_client_id_to_url(url, client_id)
 
-    async with session.get(url) as resp:
+    async with session.get(url, headers=SOUNDCLOUD_HEADERS) as resp:
         if resp.status != 200:
             raise Exception(f"Failed to fetch tracks ({resp.status}): {await resp.text()}")
         return await resp.json()
@@ -184,7 +193,7 @@ async def fetch_track_details(
     params = {"client_id": client_id}
 
     try:
-        async with session.get(url, params=params) as resp:
+        async with session.get(url, params=params, headers=SOUNDCLOUD_HEADERS) as resp:
             if resp.status != 200:
                 print(f"  Warning: Could not fetch track {track_id}")
                 return None
