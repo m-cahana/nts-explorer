@@ -1,7 +1,13 @@
 name: Daily Soundcloud Scrape
 
 on:
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      reset:
+        description: 'Start fresh (rescrape all tracks)'
+        required: false
+        type: boolean
+        default: false
   schedule:
     - cron: '0 6 * * *'  # Daily at 6am UTC
 
@@ -30,4 +36,8 @@ jobs:
           SOUNDCLOUD_USER_ID: ${{ secrets.SOUNDCLOUD_USER_ID }}
         run: |
           cd scraper
-          python scraper.py
+          if [ "${{ inputs.reset }}" = "true" ]; then
+            python scraper.py --reset
+          else
+            python scraper.py
+          fi

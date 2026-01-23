@@ -31,6 +31,16 @@ SOUNDCLOUD_USER_ID = os.getenv("SOUNDCLOUD_USER_ID", "user-202286394-991268468")
 BATCH_SIZE = 50  # Tracks per API page
 RATE_LIMIT_DELAY = 1.0  # Seconds between individual track requests
 BATCH_DELAY = 2.0  # Seconds between batch requests
+NTS_RATE_LIMIT_DELAY = 0.5  # Seconds between NTS API requests
+
+# NTS API configuration
+NTS_API_BASE = "https://www.nts.live/api/v2"
+NTS_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.nts.live/",
+}
 
 # Initialize Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -169,7 +179,7 @@ async def fetch_track_details(
     client_id: str,
     track_id: int
 ) -> Optional[Dict]:
-    """Fetch full details for a single track (includes genre tags)."""
+    """Fetch full details for a single track (includes genre tags and NTS metadata)."""
     url = f"https://api-v2.soundcloud.com/tracks/{track_id}"
     params = {"client_id": client_id}
 
@@ -182,19 +192,52 @@ async def fetch_track_details(
 
             tag_list = data.get("tag_list", "")
             genre_tags = parse_tags(tag_list)
+            description = data.get("description")
 
-            return {
+            # Build base track data
+            track_data = {
                 "soundcloud_id": data["id"],
                 "title": data.get("title", ""),
                 "permalink_url": data.get("permalink_url", ""),
                 "artwork_url": data.get("artwork_url"),
                 "duration_ms": data.get("duration"),
                 "genre_tags": genre_tags,
-                "description": data.get("description"),
+                "description": description,
                 "play_count": data.get("playback_count"),
                 "is_streamable": data.get("streamable", True),
-                "created_at": data.get("created_at")
+                "created_at": data.get("created_at"),
+                # NTS fields default to None
+                "nts_url": None,
+                "nts_show_alias": None,
+                "nts_episode_alias": None,
+                "nts_location": None,
+                "nts_genres": None,
+                "nts_moods": None,
+                "nts_intensity": None,
+                "nts_broadcast": None,
             }
+
+            # Extract NTS URL from description
+            nts_info = extract_nts_url(description)
+            if nts_info:
+                track_data["nts_url"] = nts_info["url"]
+                track_data["nts_show_alias"] = nts_info["show_alias"]
+                track_data["nts_episode_alias"] = nts_info["episode_alias"]
+
+                # Fetch NTS metadata
+                nts_metadata = await fetch_nts_metadata(
+                    session,
+                    nts_info["show_alias"],
+                    nts_info["episode_alias"]
+                )
+
+                if nts_metadata:
+                    track_data.update(nts_metadata)
+                    print(f"    NTS: {nts_metadata.get('nts_location', 'Unknown')} | {nts_metadata.get('nts_genres', [])}")
+
+                await asyncio.sleep(NTS_RATE_LIMIT_DELAY)
+
+            return track_data
     except Exception as e:
         print(f"  Error fetching track {track_id}: {e}")
         return None
@@ -212,6 +255,67 @@ def parse_tags(tag_list: str) -> List[str]:
         if tag:
             tags.append(tag)
     return tags
+
+
+def extract_nts_url(description: str) -> Optional[Dict[str, str]]:
+    """Extract NTS episode URL from SoundCloud description.
+
+    Returns dict with 'url', 'show_alias', 'episode_alias' if found, else None.
+    """
+    if not description:
+        return None
+
+    pattern = r'https://www\.nts\.live/shows/([^/]+)/episodes/([^/\s]+)'
+    match = re.search(pattern, description)
+
+    if match:
+        return {
+            "url": match.group(0),
+            "show_alias": match.group(1),
+            "episode_alias": match.group(2).rstrip('.,;:!?)'),  # Clean trailing punctuation
+        }
+    return None
+
+
+async def fetch_nts_metadata(
+    session: aiohttp.ClientSession,
+    show_alias: str,
+    episode_alias: str
+) -> Optional[Dict]:
+    """Fetch metadata from NTS API for an episode."""
+    url = f"{NTS_API_BASE}/shows/{show_alias}/episodes/{episode_alias}"
+
+    try:
+        async with session.get(url, headers=NTS_HEADERS) as resp:
+            if resp.status != 200:
+                return None
+
+            data = await resp.json()
+
+            # Extract genres (array of {id, value})
+            genres = [g.get("value") for g in data.get("genres", []) if g.get("value")]
+
+            # Extract moods (array of {id, value})
+            moods = [m.get("value") for m in data.get("moods", []) if m.get("value")]
+
+            # Parse intensity as integer (API returns string)
+            intensity = None
+            if data.get("intensity"):
+                try:
+                    intensity = int(data.get("intensity"))
+                except (ValueError, TypeError):
+                    pass
+
+            return {
+                "nts_location": data.get("location_long"),
+                "nts_genres": genres if genres else None,
+                "nts_moods": moods if moods else None,
+                "nts_intensity": intensity,
+                "nts_broadcast": data.get("broadcast"),
+            }
+    except Exception as e:
+        print(f"  Warning: Could not fetch NTS metadata: {e}")
+        return None
 
 
 def save_tracks_batch(tracks: List[Dict]):
