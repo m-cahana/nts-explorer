@@ -10,6 +10,7 @@ Usage:
 """
 
 import asyncio
+import random
 import re
 import os
 import sys
@@ -29,17 +30,31 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 SOUNDCLOUD_USER_ID = os.getenv("SOUNDCLOUD_USER_ID", "user-202286394-991268468")
 
 BATCH_SIZE = 50  # Tracks per API page
-RATE_LIMIT_DELAY = 1.0  # Seconds between individual track requests
-BATCH_DELAY = 2.0  # Seconds between batch requests
+RATE_LIMIT_DELAY = 1.5  # Base seconds between individual track requests
+BATCH_DELAY = 3.0  # Base seconds between batch requests
 NTS_RATE_LIMIT_DELAY = 0.5  # Seconds between NTS API requests
+
+
+def jittered_delay(base: float) -> float:
+    """Add random jitter to delays to appear more human-like."""
+    return base + random.uniform(0.5, 1.5)
 
 # SoundCloud API headers (required to avoid bot detection)
 SOUNDCLOUD_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "Accept": "application/json, text/javascript, */*; q=0.01",
     "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
     "Referer": "https://soundcloud.com/",
     "Origin": "https://soundcloud.com",
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-site",
+    "sec-ch-ua": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"macOS"',
+    "DNT": "1",
+    "Connection": "keep-alive",
 }
 
 # NTS API configuration
@@ -340,7 +355,9 @@ def save_tracks_batch(tracks: List[Dict]):
 
 async def scrape_all(start_fresh: bool = False):
     """Main scraping function using cursor-based pagination."""
-    async with aiohttp.ClientSession() as session:
+    # Use cookie jar to maintain session cookies like a real browser
+    jar = aiohttp.CookieJar()
+    async with aiohttp.ClientSession(cookie_jar=jar) as session:
         # 1. Discover client_id
         client_id = await get_client_id(session)
 
@@ -369,6 +386,10 @@ async def scrape_all(start_fresh: bool = False):
             current_url = f"{base_url}?limit={BATCH_SIZE}&linked_partitioning=1"
 
         batch_num = 0
+
+        # Small delay before first request to appear more natural
+        print("Starting scrape...")
+        await asyncio.sleep(random.uniform(1.0, 2.0))
 
         # 5. Paginate through all tracks using cursor (next_href)
         while current_url:
@@ -399,7 +420,7 @@ async def scrape_all(start_fresh: bool = False):
                 if details:
                     tracks.append(details)
 
-                await asyncio.sleep(RATE_LIMIT_DELAY)
+                await asyncio.sleep(jittered_delay(RATE_LIMIT_DELAY))
 
             # 7. IMMEDIATELY save batch to Supabase (crash-resistant)
             if tracks:
@@ -420,7 +441,7 @@ async def scrape_all(start_fresh: bool = False):
                 break
 
             current_url = next_href
-            await asyncio.sleep(BATCH_DELAY)
+            await asyncio.sleep(jittered_delay(BATCH_DELAY))
 
         print(f"\n{'='*50}")
         print(f"Scraping finished!")
