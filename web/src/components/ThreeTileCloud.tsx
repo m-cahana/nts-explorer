@@ -1,8 +1,8 @@
 import { useRef, useMemo, useState, useEffect, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useTexture } from '@react-three/drei';
-import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import * as THREE from 'three';
+import type { OrbitControlsImpl } from 'three-stdlib';
+import { Vector3, MathUtils, Mesh, Group, LinearFilter, DoubleSide, MOUSE } from 'three';
 import type { Track } from '../types';
 
 interface Props {
@@ -56,23 +56,24 @@ function Tile({
   onPointerOut: () => void;
   onClick: () => void;
 }) {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const artworkUrl = getSmallArtworkUrl(track.artwork_url);
+  const meshRef = useRef<Mesh>(null);
+  const artworkUrl = getSmallArtworkUrl(track.artwork_url)!;
 
   // Load texture
-  const texture = useTexture(artworkUrl || '/placeholder.png', (tex) => {
-    tex.minFilter = THREE.LinearFilter;
-    tex.magFilter = THREE.LinearFilter;
+  const texture = useTexture(artworkUrl, (tex) => {
+    tex.minFilter = LinearFilter;
+    tex.magFilter = LinearFilter;
   });
 
   // Scale animation for hover
   const targetScale = isHovered ? 1.3 : 1;
+  const tempScaleVec = useMemo(() => new Vector3(), []);
 
   useFrame(() => {
     if (meshRef.current) {
-      // Smooth scale transition
+      // Smooth scale transition - reuse vector to avoid allocation
       meshRef.current.scale.lerp(
-        new THREE.Vector3(targetScale, targetScale, targetScale),
+        tempScaleVec.set(targetScale, targetScale, targetScale),
         0.1
       );
     }
@@ -98,14 +99,14 @@ function Tile({
       <planeGeometry args={[TILE_SIZE, TILE_SIZE]} />
       <meshBasicMaterial
         map={texture}
-        side={THREE.DoubleSide}
+        side={DoubleSide}
         transparent
       />
       {/* Active indicator ring */}
       {isActive && (
         <mesh position={[0, 0, 0.1]}>
           <ringGeometry args={[TILE_SIZE / 2 + 2, TILE_SIZE / 2 + 4, 32]} />
-          <meshBasicMaterial color="#000" side={THREE.DoubleSide} />
+          <meshBasicMaterial color="#000" side={DoubleSide} />
         </mesh>
       )}
     </mesh>
@@ -118,12 +119,12 @@ function CameraController({
   focusPosition
 }: {
   isReady: boolean;
-  focusPosition: THREE.Vector3 | null;
+  focusPosition: Vector3 | null;
 }) {
   const { camera } = useThree();
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const [introComplete, setIntroComplete] = useState(false);
-  const prevFocusPosition = useRef<THREE.Vector3 | null>(null);
+  const prevFocusPosition = useRef<Vector3 | null>(null);
 
   // Track focus position changes to mark intro complete (avoid setState in useEffect)
 
@@ -144,7 +145,7 @@ function CameraController({
 
       if (currentDistance < targetDistance - 10) {
         const direction = camera.position.clone().normalize();
-        const newDistance = THREE.MathUtils.lerp(currentDistance, targetDistance, 0.02);
+        const newDistance = MathUtils.lerp(currentDistance, targetDistance, 0.02);
         camera.position.copy(direction.multiplyScalar(newDistance));
       } else {
         setIntroComplete(true);
@@ -163,7 +164,7 @@ function CameraController({
       const currentDistanceFromTarget = camera.position.distanceTo(currentTarget);
 
       if (Math.abs(currentDistanceFromTarget - targetZoomDistance) > 2) {
-        const newDistance = THREE.MathUtils.lerp(
+        const newDistance = MathUtils.lerp(
           currentDistanceFromTarget,
           targetZoomDistance,
           0.2
@@ -189,9 +190,9 @@ function CameraController({
       minDistance={200}
       maxDistance={2500}
       mouseButtons={{
-        LEFT: THREE.MOUSE.ROTATE,
-        MIDDLE: THREE.MOUSE.DOLLY,
-        RIGHT: THREE.MOUSE.ROTATE,
+        LEFT: MOUSE.ROTATE,
+        MIDDLE: MOUSE.DOLLY,
+        RIGHT: MOUSE.ROTATE,
       }}
     />
   );
@@ -213,7 +214,7 @@ function BillboardTiles({
   onHoverEnd: () => void;
   onClick: (trackId: number) => void;
 }) {
-  const groupRef = useRef<THREE.Group>(null);
+  const groupRef = useRef<Group>(null);
   const { camera } = useThree();
 
   // Calculate 3D positions for all tracks
@@ -233,7 +234,7 @@ function BillboardTiles({
   useFrame(() => {
     if (groupRef.current) {
       groupRef.current.children.forEach(child => {
-        if (child instanceof THREE.Mesh) {
+        if (child instanceof Mesh) {
           child.lookAt(camera.position);
         }
       });
@@ -268,8 +269,8 @@ export function ThreeTileCloud({
   isReady = false,
 }: Props) {
   const [hoveredTrackId, setHoveredTrackId] = useState<number | null>(null);
-  const [focusPosition, setFocusPosition] = useState<THREE.Vector3 | null>(null);
-  const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
+  const [focusPosition, setFocusPosition] = useState<Vector3 | null>(null);
+  const cursorRef = useRef<HTMLDivElement>(null);
 
   // Handle hover
   const handleHoverStart = useCallback((trackId: number) => {
@@ -291,33 +292,37 @@ export function ThreeTileCloud({
       const phi = seededRandom(trackId * 2) * Math.PI;
       const radius = CLOUD_RADIUS * (0.3 + seededRandom(trackId * 3) * 0.7);
       const pos = sphericalToCartesian(radius, theta, phi);
-      setFocusPosition(new THREE.Vector3(pos.x, pos.y, pos.z));
+      setFocusPosition(new Vector3(pos.x, pos.y, pos.z));
     }
     onClick(trackId);
   }, [tracks, onClick]);
 
-  // Track mouse for custom cursor
+  // Track mouse for custom cursor - use direct DOM manipulation to avoid re-renders
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      setCursorPos({ x: e.clientX, y: e.clientY });
+      if (cursorRef.current) {
+        cursorRef.current.style.left = `${e.clientX}px`;
+        cursorRef.current.style.top = `${e.clientY}px`;
+      }
     };
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Limit tracks for performance
+  // Limit tracks for performance and filter out tracks without artwork
   const limitedTracks = useMemo(() => {
-    return tracks.slice(0, 500); // Start with 500 for testing
+    return tracks.filter(t => t.artwork_url).slice(0, 500);
   }, [tracks]);
 
   return (
     <div style={{ width: '100%', height: '100%', cursor: 'none' }}>
-      {/* Custom circle cursor */}
+      {/* Custom circle cursor - positioned via ref to avoid re-renders */}
       <div
+        ref={cursorRef}
         style={{
           position: 'fixed',
-          left: cursorPos.x,
-          top: cursorPos.y,
+          left: 0,
+          top: 0,
           width: '24px',
           height: '24px',
           border: '2px solid #000',

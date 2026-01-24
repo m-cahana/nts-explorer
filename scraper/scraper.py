@@ -28,6 +28,7 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 SOUNDCLOUD_USER_ID = os.getenv("SOUNDCLOUD_USER_ID", "user-202286394-991268468")
+PROXY_URL = os.getenv("PROXY_URL")  # Optional: residential proxy to bypass DataDome
 
 BATCH_SIZE = 50  # Tracks per API page
 RATE_LIMIT_DELAY = 1.5  # Base seconds between individual track requests
@@ -74,7 +75,7 @@ async def get_client_id(session: aiohttp.ClientSession) -> str:
     """Extract client_id from SoundCloud's JavaScript bundles."""
     print("Discovering SoundCloud client_id...")
 
-    async with session.get("https://soundcloud.com", headers=SOUNDCLOUD_HEADERS) as resp:
+    async with session.get("https://soundcloud.com", headers=SOUNDCLOUD_HEADERS, proxy=PROXY_URL) as resp:
         html = await resp.text()
 
     script_pattern = r'<script crossorigin src="(https://[^"]+\.js)"'
@@ -91,7 +92,7 @@ async def get_client_id(session: aiohttp.ClientSession) -> str:
 
     for script_url in script_urls:
         try:
-            async with session.get(script_url, headers=SOUNDCLOUD_HEADERS) as resp:
+            async with session.get(script_url, headers=SOUNDCLOUD_HEADERS, proxy=PROXY_URL) as resp:
                 js_content = await resp.text()
 
             for pattern in patterns:
@@ -114,7 +115,7 @@ async def get_user_id(session: aiohttp.ClientSession, client_id: str, username: 
         "client_id": client_id
     }
 
-    async with session.get(url, params=params, headers=SOUNDCLOUD_HEADERS) as resp:
+    async with session.get(url, params=params, headers=SOUNDCLOUD_HEADERS, proxy=PROXY_URL) as resp:
         if resp.status != 200:
             raise Exception(f"Failed to resolve user: {await resp.text()}")
         data = await resp.json()
@@ -192,7 +193,7 @@ async def fetch_tracks_page(
     # Ensure client_id is in the URL
     url = add_client_id_to_url(url, client_id)
 
-    async with session.get(url, headers=SOUNDCLOUD_HEADERS) as resp:
+    async with session.get(url, headers=SOUNDCLOUD_HEADERS, proxy=PROXY_URL) as resp:
         if resp.status != 200:
             raise Exception(f"Failed to fetch tracks ({resp.status}): {await resp.text()}")
         return await resp.json()
@@ -208,7 +209,7 @@ async def fetch_track_details(
     params = {"client_id": client_id}
 
     try:
-        async with session.get(url, params=params, headers=SOUNDCLOUD_HEADERS) as resp:
+        async with session.get(url, params=params, headers=SOUNDCLOUD_HEADERS, proxy=PROXY_URL) as resp:
             if resp.status != 200:
                 print(f"  Warning: Could not fetch track {track_id}")
                 return None
@@ -357,6 +358,13 @@ async def scrape_all(start_fresh: bool = False):
     """Main scraping function using cursor-based pagination."""
     # Use cookie jar to maintain session cookies like a real browser
     jar = aiohttp.CookieJar()
+
+    # Log proxy usage if configured (needed for GitHub Actions to bypass DataDome)
+    if PROXY_URL:
+        # Hide credentials in log
+        proxy_display = PROXY_URL.split('@')[-1] if '@' in PROXY_URL else PROXY_URL[:40]
+        print(f"Using proxy: {proxy_display}...")
+
     async with aiohttp.ClientSession(cookie_jar=jar) as session:
         # 1. Discover client_id
         client_id = await get_client_id(session)

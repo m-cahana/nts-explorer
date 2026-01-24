@@ -54,10 +54,13 @@ export function DotsVisualization() {
     return shuffled.slice(0, 4000);
   }, [tracks]);
 
-  // Get track by ID
+  // Build track lookup Map for O(1) access instead of O(n) find()
+  const trackMap = useMemo(() => new Map(tracks.map(t => [t.id, t])), [tracks]);
+
+  // Get track by ID - O(1) lookup
   const getTrack = useCallback((id: number): Track | undefined => {
-    return tracks.find(t => t.id === id);
-  }, [tracks]);
+    return trackMap.get(id);
+  }, [trackMap]);
 
   // Play a track on main player
   const playMainTrack = useCallback((trackId: number, seekToMs?: number) => {
