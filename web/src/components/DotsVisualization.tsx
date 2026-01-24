@@ -433,6 +433,9 @@ export function DotsVisualization() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontSize: '12px',
+                  width: '16px',
+                  height: '16px',
+                  lineHeight: 1,
                 }}
               >
                 {isPaused ? '▶' : '⏸'}
