@@ -3,9 +3,12 @@ import { Application, Container, Sprite, Graphics, Texture, Assets } from 'pixi.
 import { Viewport } from 'pixi-viewport';
 import type { Track } from '../types';
 
-const WORLD_WIDTH = 4000;
-const WORLD_HEIGHT = 2000;
-const TILE_SIZE = 60;
+const TILE_SIZE_PERCENT = 0.04; // 4% of smaller viewport dimension
+const MAX_ZOOM = 3.0;
+
+function calculateTileSize(width: number, height: number): number {
+  return Math.min(width, height) * TILE_SIZE_PERCENT;
+}
 
 function seededRandom(seed: number): number {
   const x = Math.sin(seed) * 10000;
@@ -36,7 +39,13 @@ export function TileCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
   const viewportRef = useRef<Viewport | null>(null);
-  const tilesRef = useRef<Map<number, { sprite: Sprite; outline: Graphics; isHovered: boolean }>>(new Map());
+  const tilesRef = useRef<Map<number, {
+    sprite: Sprite;
+    outline: Graphics;
+    isHovered: boolean;
+    normalizedX: number;
+    normalizedY: number;
+  }>>(new Map());
   const activeTrackRef = useRef<Track | null>(null);
 
   // Keep ref in sync with prop
@@ -48,6 +57,7 @@ export function TileCanvas({
     tilesRef.current.forEach((tile) => {
       if (!tile.isHovered) {
         tile.sprite.scale.set(1);
+        tile.outline.scale.set(1);
         tile.outline.visible = false;
       }
     });
@@ -73,24 +83,38 @@ export function TileCanvas({
     const container = containerRef.current;
     console.log('[TileCanvas] Container size:', container.clientWidth, 'x', container.clientHeight);
 
+    // Track if cleanup has run (for StrictMode double-mount)
+    let isCleanedUp = false;
+
     async function init() {
       console.log('[TileCanvas] Initializing PixiJS...');
       const app = new Application();
       await app.init({
         background: '#ffffff',
-        resizeTo: container,
+        width: container.clientWidth,
+        height: container.clientHeight,
         antialias: true,
       });
+
+      // Check if component unmounted during async init
+      if (isCleanedUp) {
+        console.log('[TileCanvas] Cleanup ran during init, destroying app');
+        app.destroy(true, { children: true });
+        return;
+      }
 
       console.log('[TileCanvas] PixiJS initialized, canvas size:', app.canvas.width, 'x', app.canvas.height);
       container.appendChild(app.canvas);
       appRef.current = app;
 
+      const screenWidth = container.clientWidth;
+      const screenHeight = container.clientHeight;
+
       const viewport = new Viewport({
-        screenWidth: container.clientWidth,
-        screenHeight: container.clientHeight,
-        worldWidth: WORLD_WIDTH,
-        worldHeight: WORLD_HEIGHT,
+        screenWidth: screenWidth,
+        screenHeight: screenHeight,
+        worldWidth: screenWidth,   // World matches viewport
+        worldHeight: screenHeight,
         events: app.renderer.events,
       });
 
@@ -101,24 +125,27 @@ export function TileCanvas({
         .drag()
         .pinch()
         .wheel()
-        .clampZoom({ minScale: 0.2, maxScale: 4 })
+        .clampZoom({ minScale: 1.0, maxScale: MAX_ZOOM })
         .clamp({ direction: 'all' });
-
-      // Center viewport
-      viewport.moveCenter(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
 
       // Create tiles container
       const tilesContainer = new Container();
       viewport.addChild(tilesContainer);
 
+      // Calculate initial tile size based on viewport
+      const tileSize = calculateTileSize(screenWidth, screenHeight);
+
       // Create tiles for each track
       for (const track of tracks) {
-        const x = seededRandom(track.soundcloud_id) * (WORLD_WIDTH - TILE_SIZE);
-        const y = seededRandom(track.soundcloud_id * 2) * (WORLD_HEIGHT - TILE_SIZE);
+        // Store normalized positions (0-1) for responsive repositioning
+        const normalizedX = seededRandom(track.soundcloud_id);
+        const normalizedY = seededRandom(track.soundcloud_id * 2);
+        const x = normalizedX * (screenWidth - tileSize);
+        const y = normalizedY * (screenHeight - tileSize);
 
         // Create outline (initially hidden)
         const outline = new Graphics();
-        outline.rect(-3, -3, TILE_SIZE + 6, TILE_SIZE + 6);
+        outline.rect(-3, -3, tileSize + 6, tileSize + 6);
         outline.stroke({ width: 3, color: 0x000000 });
         outline.position.set(x, y);
         outline.visible = false;
@@ -126,8 +153,8 @@ export function TileCanvas({
 
         // Create sprite
         const sprite = new Sprite(Texture.WHITE);
-        sprite.width = TILE_SIZE;
-        sprite.height = TILE_SIZE;
+        sprite.width = tileSize;
+        sprite.height = tileSize;
         sprite.position.set(x, y);
         sprite.tint = 0xcccccc;
         sprite.eventMode = 'static';
@@ -144,8 +171,8 @@ export function TileCanvas({
           });
         }
 
-        // Store tile data
-        const tileData = { sprite, outline, isHovered: false };
+        // Store tile data with normalized positions
+        const tileData = { sprite, outline, isHovered: false, normalizedX, normalizedY };
         tilesRef.current.set(track.id, tileData);
 
         // Event handlers
@@ -176,19 +203,58 @@ export function TileCanvas({
 
     init();
 
-    // Handle resize
+    // Handle resize - update viewport, world dimensions, and all tile positions/sizes
     const handleResize = () => {
-      if (viewportRef.current && containerRef.current) {
-        viewportRef.current.resize(
-          containerRef.current.clientWidth,
-          containerRef.current.clientHeight
-        );
+      if (viewportRef.current && containerRef.current && appRef.current) {
+        const newWidth = containerRef.current.clientWidth;
+        const newHeight = containerRef.current.clientHeight;
+        const newTileSize = calculateTileSize(newWidth, newHeight);
+        console.log('[TileCanvas] New tile size:', newTileSize);
+        console.log('[TileCanvas] New width:', newWidth);
+        console.log('[TileCanvas] New height:', newHeight);
+
+        // Resize the renderer/canvas to match container
+        appRef.current.renderer.resize(newWidth, newHeight);
+
+        // Update viewport and world dimensions (world = viewport)
+        viewportRef.current.resize(newWidth, newHeight, newWidth, newHeight);
+
+        // Re-apply clamp with new world dimensions
+        console.log('[TileCanvas] Viewport corner BEFORE clamp:', viewportRef.current.corner);
+        viewportRef.current.clamp({ direction: 'all' });
+        console.log('[TileCanvas] Viewport corner AFTER clamp:', viewportRef.current.corner);
+
+        // Reset viewport to origin (top-left corner)
+        viewportRef.current.moveCorner(0, 0); 
+
+        // Clamp zoom if current scale is below new minScale
+        if (viewportRef.current.scale.x < 1.0) {
+          viewportRef.current.scale.set(1.0);
+        }
+
+        // Reposition and resize all tiles
+        tilesRef.current.forEach((tileData) => {
+          const x = tileData.normalizedX * (newWidth - newTileSize);
+          const y = tileData.normalizedY * (newHeight - newTileSize);
+  
+
+          tileData.sprite.position.set(x, y);
+          tileData.sprite.width = newTileSize;
+          tileData.sprite.height = newTileSize;
+
+          // Redraw outline with new size
+          tileData.outline.clear();
+          tileData.outline.rect(-3, -3, newTileSize + 6, newTileSize + 6);
+          tileData.outline.stroke({ width: 3, color: 0x000000 });
+          tileData.outline.position.set(x, y);
+        });
       }
     };
 
     window.addEventListener('resize', handleResize);
 
     return () => {
+      isCleanedUp = true;
       window.removeEventListener('resize', handleResize);
       if (appRef.current) {
         appRef.current.destroy(true, { children: true });
