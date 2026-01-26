@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTracks } from './hooks/useTracks';
 import { LoadingScreen } from './components/LoadingScreen';
 import { TileCanvas } from './components/TileCanvas';
@@ -23,6 +23,12 @@ function App() {
   // Player refs
   const mainPlayerRef = useRef<SoundCloudPlayerHandle>(null);
   const previewPlayerRef = useRef<SoundCloudPlayerHandle>(null);
+
+  // Ref to track activeTrack without causing callback recreation
+  const activeTrackRef = useRef(activeTrack);
+  useEffect(() => {
+    activeTrackRef.current = activeTrack;
+  }, [activeTrack]);
   const savedPositionRef = useRef(0);
 
   const handleEnter = useCallback(() => {
@@ -64,10 +70,10 @@ function App() {
     setPreviewTrack(null);
 
     // Resume main player
-    if (activeTrack && mainPlayerRef.current) {
+    if (activeTrackRef.current && mainPlayerRef.current) {
       mainPlayerRef.current.play();
     }
-  }, [activeTrack]);
+  }, []);
 
   const handleClick = useCallback((track: Track) => {
     console.log('[App] handleClick called for track:', track.id, track.title);
@@ -148,13 +154,14 @@ function App() {
             previewTrack={previewTrack}
           />
 
-          {activeTrack && !previewTrack && (
+          {(activeTrack || previewTrack) && (
             <ProgressPill
               position={position}
               duration={duration}
               isPaused={isPaused}
               onPlayPause={handlePlayPause}
               onSeek={handleSeek}
+              isPreview={!!previewTrack}
             />
           )}
         </>

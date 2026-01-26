@@ -43,7 +43,6 @@ export function TileCanvas({
   const tilesRef = useRef<Map<number, {
     sprite: Sprite;
     outline: Graphics;
-    isHovered: boolean;
     normalizedX: number;
     normalizedY: number;
   }>>(new Map());
@@ -52,23 +51,17 @@ export function TileCanvas({
   // Keep ref in sync with prop
   activeTrackRef.current = activeTrack;
 
-  // Update active track (selected) - 3x scale with border
+  // Update active track (selected) - show border only
   useEffect(() => {
     // Reset previous active
     tilesRef.current.forEach((tile) => {
-      if (!tile.isHovered) {
-        tile.sprite.scale.set(1);
-        tile.outline.scale.set(1);
-        tile.outline.visible = false;
-      }
+      tile.outline.visible = false;
     });
 
     // Set new active
     if (activeTrack) {
       const tile = tilesRef.current.get(activeTrack.id);
       if (tile) {
-        tile.sprite.scale.set(2);
-        tile.outline.scale.set(2);
         tile.outline.visible = true;
       }
     }
@@ -176,22 +169,15 @@ export function TileCanvas({
         }
 
         // Store tile data with normalized positions
-        const tileData = { sprite, outline, isHovered: false, normalizedX, normalizedY };
+        const tileData = { sprite, outline, normalizedX, normalizedY };
         tilesRef.current.set(track.id, tileData);
 
         // Event handlers
         sprite.on('pointerenter', () => {
-          tileData.isHovered = true;
-          sprite.scale.set(2);
           onHover(track);
         });
 
         sprite.on('pointerleave', () => {
-          tileData.isHovered = false;
-          // Only reset scale if not active
-          if (activeTrackRef.current?.id !== track.id) {
-            sprite.scale.set(1);
-          }
           onHoverEnd();
         });
 
@@ -240,7 +226,6 @@ export function TileCanvas({
         tilesRef.current.forEach((tileData) => {
           const x = tileData.normalizedX * (newWidth - newTileSize);
           const y = tileData.normalizedY * (newHeight - newTileSize);
-  
 
           tileData.sprite.position.set(x, y);
           tileData.sprite.width = newTileSize;

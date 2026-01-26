@@ -7,6 +7,7 @@ interface ProgressPillProps {
   isPaused: boolean;
   onPlayPause: () => void;
   onSeek: (positionMs: number) => void;
+  isPreview?: boolean;
 }
 
 function formatTime(ms: number): string {
@@ -21,7 +22,7 @@ function formatTime(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
-export function ProgressPill({ position, duration, isPaused, onPlayPause, onSeek }: ProgressPillProps) {
+export function ProgressPill({ position, duration, isPaused, onPlayPause, onSeek, isPreview = false }: ProgressPillProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -56,6 +57,17 @@ export function ProgressPill({ position, duration, isPaused, onPlayPause, onSeek
   }, [duration, onSeek, handleBarClick]);
 
   if (!duration) return null;
+
+  // Show simplified preview indicator
+  if (isPreview) {
+    return (
+      <div className="progress-pill">
+        <span >
+          ~~previewing~~
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="progress-pill">
