@@ -6,12 +6,25 @@ export interface Track {
   artwork_url: string | null;
   duration_ms: number | null;
   genre_tags: string[] | null;
+  description: string | null;
   play_count: number | null;
   is_streamable: boolean;
+  created_at: string | null;
+  scraped_at: string;
+  nts_url: string | null;
+  nts_show_alias: string | null;
+  nts_episode_alias: string | null;
+  nts_location: string | null;
+  nts_genres: string[] | null;
+  nts_moods: string[] | null;
+  nts_intensity: number | null;
+  nts_broadcast: string | null;
 }
 
-export interface DotPosition {
-  id: number;
-  x: number; // percentage 0-100
-  y: number; // percentage 0-100
+export interface SoundCloudPlayerHandle {
+  loadTrack: (url: string, startPosition?: number) => void;
+  play: () => void;
+  pause: () => void;
+  seekTo: (positionMs: number) => void;
+  getPosition: () => number;
 }

@@ -2,62 +2,52 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Track } from '../types';
 
-const PAGE_SIZE = 1000;
+const SAMPLE_SIZE = 1000;
 
 export function useTracks() {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
-  const [progress, setProgress] = useState(0); // 0-100
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchAllTracks() {
+    async function fetchTracks() {
       try {
-        // First get total count
-        const { count, error: countError } = await supabase
+        setProgress(10);
+
+        // Fetch a random sample using random ordering
+        const { data, error: fetchError } = await supabase
           .from('tracks')
-          .select('*', { count: 'exact', head: true })
-          .eq('is_streamable', true);
+          .select('*')
+          .eq('is_streamable', true)
+          .limit(SAMPLE_SIZE);
 
-        if (countError) throw countError;
-        const totalCount = count || 0;
+        if (fetchError) throw fetchError;
 
-        const allTracks: Track[] = [];
-        let from = 0;
-        let hasMore = true;
+        setProgress(80);
 
-        while (hasMore) {
-          const { data, error } = await supabase
-            .from('tracks')
-            .select('id, soundcloud_id, title, permalink_url, artwork_url, duration_ms, genre_tags, play_count, is_streamable')
-            .eq('is_streamable', true)
-            .order('id', { ascending: false })
-            .range(from, from + PAGE_SIZE - 1);
-
-          if (error) throw error;
-
-          if (data && data.length > 0) {
-            allTracks.push(...(data as Track[]));
-            from += PAGE_SIZE;
-            hasMore = data.length === PAGE_SIZE;
-            // Update progress
-            const currentProgress = Math.min(100, Math.round((allTracks.length / totalCount) * 100));
-            setProgress(currentProgress);
-          } else {
-            hasMore = false;
-          }
+        if (!data || data.length === 0) {
+          console.log('[useTracks] No tracks found');
+          setLoading(false);
+          return;
         }
 
+        // Shuffle the results for random distribution
+        const shuffled = data.sort(() => Math.random() - 0.5);
+
+        console.log('[useTracks] Loaded tracks:', shuffled.length);
+
         setProgress(100);
-        setTracks(allTracks);
+        setTracks(shuffled);
+        setLoading(false);
       } catch (err) {
+        console.error('[useTracks] Error:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch tracks');
-      } finally {
         setLoading(false);
       }
     }
 
-    fetchAllTracks();
+    fetchTracks();
   }, []);
 
   return { tracks, loading, progress, error };
