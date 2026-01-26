@@ -3,9 +3,9 @@ import { Application, Container, Sprite, Graphics, Texture, Assets } from 'pixi.
 import { Viewport } from 'pixi-viewport';
 import type { Track } from '../types';
 
-const TILE_SIZE_PERCENT = 0.05; // 4% of smaller viewport dimension
+const TILE_SIZE_PERCENT = 0.03; // x% of smaller viewport dimension
 const MIN_ZOOM = 0.8;
-const MAX_ZOOM = 3.0;
+const MAX_ZOOM = 5.0;
 
 // Cursor SVG data URLs
 const CURSOR_DEFAULT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E") 16 16, auto`;
@@ -35,6 +35,7 @@ function getArtworkUrl(url: string | null, size: 'small' | 'large'): string {
 interface TileCanvasProps {
   tracks: Track[];
   activeTrack: Track | null;
+  previewTrack: Track | null;
   onHover: (track: Track) => void;
   onHoverEnd: () => void;
   onClick: (track: Track) => void;
@@ -43,6 +44,7 @@ interface TileCanvasProps {
 export function TileCanvas({
   tracks,
   activeTrack,
+  previewTrack,
   onHover,
   onHoverEnd,
   onClick,
@@ -57,13 +59,16 @@ export function TileCanvas({
     normalizedY: number;
   }>>(new Map());
   const activeTrackRef = useRef<Track | null>(null);
+  const previewTrackRef = useRef<Track | null>(null);
+  const baseTileSizeRef = useRef<number>(0);
   const [cursor, setCursor] = useState(CURSOR_DEFAULT);
   const cursorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDraggingRef = useRef(false);
   const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
 
-  // Keep ref in sync with prop
+  // Keep refs in sync with props
   activeTrackRef.current = activeTrack;
+  previewTrackRef.current = previewTrack;
 
   // Handle wheel events for zoom cursor
   useEffect(() => {
@@ -149,21 +154,55 @@ export function TileCanvas({
     };
   }, []);
 
-  // Update active track (selected) - show border only
+  // Helper function to update tile appearance
+  const updateTileAppearance = (
+    tile: { sprite: Sprite; outline: Graphics; normalizedX: number; normalizedY: number },
+    scale: number,
+    showOutline: boolean,
+    outlineColor: number
+  ) => {
+    const baseSize = baseTileSizeRef.current;
+    if (baseSize === 0) return;
+
+    const newSize = baseSize * scale;
+    tile.sprite.width = newSize;
+    tile.sprite.height = newSize;
+    tile.outline.visible = showOutline;
+
+    if (showOutline) {
+      // Redraw outline with correct size and color
+      tile.outline.clear();
+      tile.outline.rect(-3, -3, newSize + 6, newSize + 6);
+      tile.outline.stroke({ width: 1, color: outlineColor });
+    }
+  };
+
+  // Update active/preview track highlighting
   useEffect(() => {
-    // Reset previous active
+    const baseSize = baseTileSizeRef.current;
+    if (baseSize === 0) return;
+
+    // Reset ALL tiles to normal size and hide outlines
     tilesRef.current.forEach((tile) => {
-      tile.outline.visible = false;
+      updateTileAppearance(tile, 1, false, 0x000000);
     });
 
-    // Set new active
-    if (activeTrack) {
+    // If activeTrack exists AND it's not the preview: scale it 2x, show black border
+    if (activeTrack && (!previewTrack || previewTrack.id !== activeTrack.id)) {
       const tile = tilesRef.current.get(activeTrack.id);
       if (tile) {
-        tile.outline.visible = true;
+        updateTileAppearance(tile, 2, true, 0x000000);
       }
     }
-  }, [activeTrack]);
+
+    // If previewTrack exists: scale it 2x, show red border (takes precedence)
+    if (previewTrack) {
+      const tile = tilesRef.current.get(previewTrack.id);
+      if (tile) {
+        updateTileAppearance(tile, 2, true, 0xff0000);
+      }
+    }
+  }, [activeTrack, previewTrack]);
 
   useEffect(() => {
     console.log('[TileCanvas] Effect triggered, tracks:', tracks.length);
@@ -229,6 +268,7 @@ export function TileCanvas({
 
       // Calculate initial tile size based on viewport
       const tileSize = calculateTileSize(screenWidth, screenHeight);
+      baseTileSizeRef.current = tileSize;
 
       // Create tiles for each track
       for (const track of tracks) {
@@ -296,6 +336,7 @@ export function TileCanvas({
         const newWidth = containerRef.current.clientWidth;
         const newHeight = containerRef.current.clientHeight;
         const newTileSize = calculateTileSize(newWidth, newHeight);
+        baseTileSizeRef.current = newTileSize;
         console.log('[TileCanvas] New tile size:', newTileSize);
         console.log('[TileCanvas] New width:', newWidth);
         console.log('[TileCanvas] New height:', newHeight);
@@ -312,14 +353,14 @@ export function TileCanvas({
         console.log('[TileCanvas] Viewport corner AFTER clamp:', viewportRef.current.corner);
 
         // Reset viewport to origin (top-left corner)
-        viewportRef.current.moveCorner(0, 0); 
+        viewportRef.current.moveCorner(0, 0);
 
         // Clamp zoom if current scale is below minScale
         if (viewportRef.current.scale.x < MIN_ZOOM) {
           viewportRef.current.scale.set(MIN_ZOOM);
         }
 
-        // Reposition and resize all tiles
+        // Reposition and resize all tiles to base size first
         tilesRef.current.forEach((tileData) => {
           const x = tileData.normalizedX * (newWidth - newTileSize);
           const y = tileData.normalizedY * (newHeight - newTileSize);
@@ -328,12 +369,45 @@ export function TileCanvas({
           tileData.sprite.width = newTileSize;
           tileData.sprite.height = newTileSize;
 
-          // Redraw outline with new size
+          // Reset outline
           tileData.outline.clear();
           tileData.outline.rect(-3, -3, newTileSize + 6, newTileSize + 6);
           tileData.outline.stroke({ width: 3, color: 0x000000 });
           tileData.outline.position.set(x, y);
+          tileData.outline.visible = false;
         });
+
+        // Reapply active/preview highlighting after resize
+        const currentActiveTrack = activeTrackRef.current;
+        const currentPreviewTrack = previewTrackRef.current;
+
+        // Apply active track highlighting (if not being previewed)
+        if (currentActiveTrack && (!currentPreviewTrack || currentPreviewTrack.id !== currentActiveTrack.id)) {
+          const tile = tilesRef.current.get(currentActiveTrack.id);
+          if (tile) {
+            const size = newTileSize * 2;
+            tile.sprite.width = size;
+            tile.sprite.height = size;
+            tile.outline.clear();
+            tile.outline.rect(-3, -3, size + 6, size + 6);
+            tile.outline.stroke({ width: 3, color: 0x000000 });
+            tile.outline.visible = true;
+          }
+        }
+
+        // Apply preview track highlighting (takes precedence with red border)
+        if (currentPreviewTrack) {
+          const tile = tilesRef.current.get(currentPreviewTrack.id);
+          if (tile) {
+            const size = newTileSize * 2;
+            tile.sprite.width = size;
+            tile.sprite.height = size;
+            tile.outline.clear();
+            tile.outline.rect(-3, -3, size + 6, size + 6);
+            tile.outline.stroke({ width: 3, color: 0xff0000 });
+            tile.outline.visible = true;
+          }
+        }
       }
     };
 

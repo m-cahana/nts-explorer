@@ -157,6 +157,7 @@ function App() {
           <TileCanvas
             tracks={tracks}
             activeTrack={activeTrack}
+            previewTrack={previewTrack}
             onHover={handleHover}
             onHoverEnd={handleHoverEnd}
             onClick={handleClick}
