@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback } from 'react';
+import './ProgressPill.css';
 
 interface ProgressPillProps {
   position: number;
@@ -57,36 +58,10 @@ export function ProgressPill({ position, duration, isPaused, onPlayPause, onSeek
   if (!duration) return null;
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: '20px',
-        right: '20px',
-        background: '#ffffff',
-        border: '1px solid #e0e0e0',
-        borderRadius: '20px',
-        padding: '10px 16px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        zIndex: 100,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-      }}
-    >
+    <div className="progress-pill">
       <button
         onClick={onPlayPause}
-        style={{
-          width: '28px',
-          height: '28px',
-          border: 'none',
-          background: '#000',
-          borderRadius: '50%',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-        }}
+        className="progress-pill__play-button"
       >
         {isPaused ? (
           <svg width="12" height="14" viewBox="0 0 12 14" fill="white">
@@ -100,46 +75,26 @@ export function ProgressPill({ position, duration, isPaused, onPlayPause, onSeek
         )}
       </button>
 
-      <span style={{ fontSize: '12px', color: '#666', minWidth: '45px' }}>
+      <span className="progress-pill__time">
         {formatTime(position)}
       </span>
 
       <div
         ref={barRef}
         onMouseDown={handleMouseDown}
-        style={{
-          width: '120px',
-          height: '4px',
-          background: '#e0e0e0',
-          borderRadius: '2px',
-          cursor: 'pointer',
-          position: 'relative',
-        }}
+        className="progress-pill__bar"
       >
         <div
-          style={{
-            width: `${progress}%`,
-            height: '100%',
-            background: '#000',
-            borderRadius: '2px',
-          }}
+          className="progress-pill__bar-fill"
+          style={{ width: `${progress}%` }}
         />
         <div
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: `${progress}%`,
-            transform: 'translate(-50%, -50%)',
-            width: isDragging ? '14px' : '10px',
-            height: isDragging ? '14px' : '10px',
-            background: '#000',
-            borderRadius: '50%',
-            transition: 'width 0.1s, height 0.1s',
-          }}
+          className={`progress-pill__bar-thumb ${isDragging ? 'progress-pill__bar-thumb--dragging' : 'progress-pill__bar-thumb--idle'}`}
+          style={{ left: `${progress}%` }}
         />
       </div>
 
-      <span style={{ fontSize: '12px', color: '#666', minWidth: '45px' }}>
+      <span className="progress-pill__time">
         {formatTime(duration)}
       </span>
     </div>
