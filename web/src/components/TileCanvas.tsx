@@ -1,11 +1,21 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Application, Container, Sprite, Graphics, Texture, Assets } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import type { Track } from '../types';
 
-const TILE_SIZE_PERCENT = 0.04; // 4% of smaller viewport dimension
+const TILE_SIZE_PERCENT = 0.05; // 4% of smaller viewport dimension
 const MIN_ZOOM = 0.9;
 const MAX_ZOOM = 3.0;
+
+// Cursor SVG data URLs
+const CURSOR_DEFAULT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E") 16 16, auto`;
+const CURSOR_ZOOM_IN = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='black' stroke-width='2'/%3E%3Cline x1='10' y1='16' x2='22' y2='16' stroke='black' stroke-width='2'/%3E%3Cline x1='16' y1='10' x2='16' y2='22' stroke='black' stroke-width='2'/%3E%3C/svg%3E") 16 16, auto`;
+const CURSOR_ZOOM_OUT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='black' stroke-width='2'/%3E%3Cline x1='10' y1='16' x2='22' y2='16' stroke='black' stroke-width='2'/%3E%3C/svg%3E") 16 16, auto`;
+// Arrow cursors for drag directions - classic line + chevron style
+const CURSOR_ARROW_LEFT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='black' stroke-width='2'/%3E%3Cline x1='9' y1='16' x2='23' y2='16' stroke='black' stroke-width='2'/%3E%3Cpath d='M9 16 L14 11 M9 16 L14 21' stroke='black' stroke-width='2' fill='none'/%3E%3C/svg%3E") 16 16, auto`;
+const CURSOR_ARROW_RIGHT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='black' stroke-width='2'/%3E%3Cline x1='9' y1='16' x2='23' y2='16' stroke='black' stroke-width='2'/%3E%3Cpath d='M23 16 L18 11 M23 16 L18 21' stroke='black' stroke-width='2' fill='none'/%3E%3C/svg%3E") 16 16, auto`;
+const CURSOR_ARROW_UP = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='black' stroke-width='2'/%3E%3Cline x1='16' y1='9' x2='16' y2='23' stroke='black' stroke-width='2'/%3E%3Cpath d='M16 9 L11 14 M16 9 L21 14' stroke='black' stroke-width='2' fill='none'/%3E%3C/svg%3E") 16 16, auto`;
+const CURSOR_ARROW_DOWN = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='black' stroke-width='2'/%3E%3Cline x1='16' y1='9' x2='16' y2='23' stroke='black' stroke-width='2'/%3E%3Cpath d='M16 23 L11 18 M16 23 L21 18' stroke='black' stroke-width='2' fill='none'/%3E%3C/svg%3E") 16 16, auto`;
 
 function calculateTileSize(width: number, height: number): number {
   return Math.min(width, height) * TILE_SIZE_PERCENT;
@@ -47,9 +57,97 @@ export function TileCanvas({
     normalizedY: number;
   }>>(new Map());
   const activeTrackRef = useRef<Track | null>(null);
+  const [cursor, setCursor] = useState(CURSOR_DEFAULT);
+  const cursorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDraggingRef = useRef(false);
+  const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
 
   // Keep ref in sync with prop
   activeTrackRef.current = activeTrack;
+
+  // Handle wheel events for zoom cursor
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // Don't change cursor if dragging
+      if (isDraggingRef.current) return;
+
+      // Clear any pending reset
+      if (cursorTimeoutRef.current) {
+        clearTimeout(cursorTimeoutRef.current);
+      }
+
+      // deltaY > 0 means scrolling down = zoom out, deltaY < 0 means scrolling up = zoom in
+      if (e.deltaY < 0) {
+        setCursor(CURSOR_ZOOM_IN);
+      } else if (e.deltaY > 0) {
+        setCursor(CURSOR_ZOOM_OUT);
+      }
+
+      // Reset cursor after 150ms of no wheel events
+      cursorTimeoutRef.current = setTimeout(() => {
+        setCursor(CURSOR_DEFAULT);
+      }, 150);
+    };
+
+    container.addEventListener('wheel', handleWheel);
+
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+      if (cursorTimeoutRef.current) {
+        clearTimeout(cursorTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Handle drag events for directional arrow cursor
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleMouseDown = (e: MouseEvent) => {
+      isDraggingRef.current = true;
+      lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current || !lastMousePosRef.current) return;
+
+      const deltaX = e.clientX - lastMousePosRef.current.x;
+      const deltaY = e.clientY - lastMousePosRef.current.y;
+
+      // Only update if there's significant movement
+      if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
+        // Determine dominant direction
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+          // Horizontal movement - arrow points opposite to drag (pan direction)
+          setCursor(deltaX > 0 ? CURSOR_ARROW_LEFT : CURSOR_ARROW_RIGHT);
+        } else {
+          // Vertical movement - arrow points opposite to drag (pan direction)
+          setCursor(deltaY > 0 ? CURSOR_ARROW_UP : CURSOR_ARROW_DOWN);
+        }
+        lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+      }
+    };
+
+    const handleMouseUp = () => {
+      isDraggingRef.current = false;
+      lastMousePosRef.current = null;
+      setCursor(CURSOR_DEFAULT);
+    };
+
+    container.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      container.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
 
   // Update active track (selected) - show border only
   useEffect(() => {
@@ -155,7 +253,6 @@ export function TileCanvas({
         sprite.position.set(x, y);
         sprite.tint = 0xcccccc;
         sprite.eventMode = 'static';
-        sprite.cursor = 'pointer';
 
         // Load artwork
         const artworkUrl = getArtworkUrl(track.artwork_url, 'small');
@@ -262,6 +359,7 @@ export function TileCanvas({
         position: 'absolute',
         top: 0,
         left: 0,
+        cursor: cursor,
       }}
     />
   );
