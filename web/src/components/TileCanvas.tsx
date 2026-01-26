@@ -4,7 +4,7 @@ import { Viewport } from 'pixi-viewport';
 import type { Track } from '../types';
 
 const TILE_SIZE_PERCENT = 0.05; // 4% of smaller viewport dimension
-const MIN_ZOOM = 0.9;
+const MIN_ZOOM = 0.8;
 const MAX_ZOOM = 3.0;
 
 // Cursor SVG data URLs

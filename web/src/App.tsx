@@ -1,16 +1,21 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTracks } from './hooks/useTracks';
+import { useAvailableYears } from './hooks/useAvailableYears';
 import { LoadingScreen } from './components/LoadingScreen';
 import { TileCanvas } from './components/TileCanvas';
 import { SoundCloudPlayer } from './components/SoundCloudPlayer';
 import { NowPlayingPill } from './components/NowPlayingPill';
 import { ProgressPill } from './components/ProgressPill';
+import { YearFilterPill } from './components/YearFilterPill';
 import type { Track, SoundCloudPlayerHandle } from './types';
 
 const PREVIEW_START_MS = 300000; // 5 minutes
+const DEFAULT_YEAR = 2025;
 
 function App() {
-  const { tracks, loading, progress, error } = useTracks();
+  const [selectedYear, setSelectedYear] = useState(DEFAULT_YEAR);
+  const { years, loading: yearsLoading } = useAvailableYears();
+  const { tracks, loading, progress, error } = useTracks(selectedYear);
   const [hasEntered, setHasEntered] = useState(false);
 
   // Audio state
@@ -107,6 +112,23 @@ function App() {
     }
   }, []);
 
+  const handleYearChange = useCallback((year: number) => {
+    // Stop audio playback
+    if (mainPlayerRef.current) {
+      mainPlayerRef.current.pause();
+    }
+    if (previewPlayerRef.current) {
+      previewPlayerRef.current.pause();
+    }
+
+    // Clear active/preview track
+    setActiveTrack(null);
+    setPreviewTrack(null);
+
+    // Update selected year (triggers re-fetch)
+    setSelectedYear(year);
+  }, []);
+
   if (error) {
     return (
       <div style={{
@@ -162,6 +184,15 @@ function App() {
               onPlayPause={handlePlayPause}
               onSeek={handleSeek}
               isPreview={!!previewTrack}
+            />
+          )}
+
+          {years.length > 0 && (
+            <YearFilterPill
+              years={years}
+              selectedYear={selectedYear}
+              onYearChange={handleYearChange}
+              isLoading={loading || yearsLoading}
             />
           )}
         </>

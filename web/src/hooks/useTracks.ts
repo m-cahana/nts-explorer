@@ -4,7 +4,7 @@ import type { Track } from '../types';
 
 const SAMPLE_SIZE = 1000;
 
-export function useTracks() {
+export function useTracks(year?: number) {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
@@ -13,14 +13,25 @@ export function useTracks() {
   useEffect(() => {
     async function fetchTracks() {
       try {
+        setLoading(true);
+        setTracks([]);
         setProgress(10);
 
-        // Fetch a random sample using random ordering
-        const { data, error: fetchError } = await supabase
+        let query = supabase
           .from('tracks')
           .select('*')
-          .eq('is_streamable', true)
-          .limit(SAMPLE_SIZE);
+          .eq('is_streamable', true);
+
+        if (year) {
+          const startDate = `${year}-01-01T00:00:00.000Z`;
+          const endDate = `${year + 1}-01-01T00:00:00.000Z`;
+          query = query
+            .not('nts_broadcast', 'is', null)
+            .gte('nts_broadcast', startDate)
+            .lt('nts_broadcast', endDate);
+        }
+
+        const { data, error: fetchError } = await query.limit(SAMPLE_SIZE);
 
         if (fetchError) throw fetchError;
 
@@ -48,7 +59,7 @@ export function useTracks() {
     }
 
     fetchTracks();
-  }, []);
+  }, [year]);
 
   return { tracks, loading, progress, error };
 }
