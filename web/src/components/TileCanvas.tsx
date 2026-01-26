@@ -4,6 +4,7 @@ import { Viewport } from 'pixi-viewport';
 import type { Track } from '../types';
 
 const TILE_SIZE_PERCENT = 0.04; // 4% of smaller viewport dimension
+const MIN_ZOOM = 0.9;
 const MAX_ZOOM = 3.0;
 
 function calculateTileSize(width: number, height: number): number {
@@ -125,8 +126,11 @@ export function TileCanvas({
         .drag()
         .pinch()
         .wheel()
-        .clampZoom({ minScale: 1.0, maxScale: MAX_ZOOM })
+        .clampZoom({ minScale: MIN_ZOOM, maxScale: MAX_ZOOM })
         .clamp({ direction: 'all' });
+
+      // Start slightly zoomed out with world centered
+      viewport.setZoom(MIN_ZOOM, true);
 
       // Create tiles container
       const tilesContainer = new Container();
@@ -227,9 +231,9 @@ export function TileCanvas({
         // Reset viewport to origin (top-left corner)
         viewportRef.current.moveCorner(0, 0); 
 
-        // Clamp zoom if current scale is below new minScale
-        if (viewportRef.current.scale.x < 1.0) {
-          viewportRef.current.scale.set(1.0);
+        // Clamp zoom if current scale is below minScale
+        if (viewportRef.current.scale.x < MIN_ZOOM) {
+          viewportRef.current.scale.set(MIN_ZOOM);
         }
 
         // Reposition and resize all tiles
