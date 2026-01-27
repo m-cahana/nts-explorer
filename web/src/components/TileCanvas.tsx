@@ -6,6 +6,8 @@ import type { Track } from '../types';
 const TILE_SIZE_PERCENT = 0.03; // x% of smaller viewport dimension
 const MIN_ZOOM = 0.8;
 const MAX_ZOOM = 5.0;
+const TILE_DEFAULT_ALPHA = 0.4;
+const TILE_ACTIVE_ALPHA = 1.0;
 
 // Cursor SVG data URLs
 const CURSOR_DEFAULT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E") 16 16, auto`;
@@ -30,6 +32,85 @@ function getArtworkUrl(url: string | null, size: 'small' | 'large'): string {
   if (!url) return '';
   const sizeStr = size === 'small' ? 't200x200' : 't500x500';
   return url.replace(/-large\./, `-${sizeStr}.`).replace(/-t\d+x\d+\./, `-${sizeStr}.`);
+}
+
+// Build genre index maps from tracks
+function buildGenreIndex(tracks: Track[]): {
+  genreIndex: Map<string, Set<number>>;
+  trackGenres: Map<number, string[]>;
+} {
+  const genreIndex = new Map<string, Set<number>>();
+  const trackGenres = new Map<number, string[]>();
+
+  for (const track of tracks) {
+    const genres = track.nts_genres;
+    if (!genres || genres.length === 0) continue;
+
+    trackGenres.set(track.id, genres);
+
+    for (const genre of genres) {
+      if (!genreIndex.has(genre)) {
+        genreIndex.set(genre, new Set());
+      }
+      genreIndex.get(genre)!.add(track.id);
+    }
+  }
+
+  return { genreIndex, trackGenres };
+}
+
+// Get all track IDs that share any genre with the given track
+function getConnectedTrackIds(
+  trackId: number,
+  genreIndex: Map<string, Set<number>>,
+  trackGenres: Map<number, string[]>
+): Set<number> {
+  const connected = new Set<number>();
+  const genres = trackGenres.get(trackId);
+  if (!genres) return connected;
+
+  for (const genre of genres) {
+    const tracksWithGenre = genreIndex.get(genre);
+    if (tracksWithGenre) {
+      for (const id of tracksWithGenre) {
+        if (id !== trackId) {
+          connected.add(id);
+        }
+      }
+    }
+  }
+
+  return connected;
+}
+
+// Draw connection lines from source tile to all connected tiles
+function drawConnectionLines(
+  graphics: Graphics,
+  sourceId: number,
+  connectedIds: Set<number>,
+  tilesRef: Map<number, { sprite: Sprite; outline: Graphics; normalizedX: number; normalizedY: number }>,
+  tileSize: number
+): void {
+  graphics.clear();
+
+  const sourceTile = tilesRef.get(sourceId);
+  if (!sourceTile) return;
+
+  const sourceX = sourceTile.sprite.x + tileSize / 2;
+  const sourceY = sourceTile.sprite.y + tileSize / 2;
+
+  for (const targetId of connectedIds) {
+    const targetTile = tilesRef.get(targetId);
+    if (!targetTile) continue;
+
+    const targetX = targetTile.sprite.x + tileSize / 2;
+    const targetY = targetTile.sprite.y + tileSize / 2;
+
+    graphics.moveTo(sourceX, sourceY);
+    graphics.lineTo(targetX, targetY);
+  }
+
+  graphics.stroke({ width: 1, color: 0xff0000, alpha: 0.3 });
 }
 
 interface TileCanvasProps {
@@ -65,6 +146,9 @@ export function TileCanvas({
   const cursorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDraggingRef = useRef(false);
   const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
+  const genreIndexRef = useRef<Map<string, Set<number>>>(new Map());
+  const trackGenresRef = useRef<Map<number, string[]>>(new Map());
+  const linesGraphicsRef = useRef<Graphics | null>(null);
 
   // Keep refs in sync with props
   activeTrackRef.current = activeTrack;
@@ -159,7 +243,8 @@ export function TileCanvas({
     tile: { sprite: Sprite; outline: Graphics; normalizedX: number; normalizedY: number },
     scale: number,
     showOutline: boolean,
-    outlineColor: number
+    outlineColor: number,
+    alpha: number = TILE_DEFAULT_ALPHA
   ) => {
     const baseSize = baseTileSizeRef.current;
     if (baseSize === 0) return;
@@ -167,6 +252,7 @@ export function TileCanvas({
     const newSize = baseSize * scale;
     tile.sprite.width = newSize;
     tile.sprite.height = newSize;
+    tile.sprite.alpha = alpha;
     tile.outline.visible = showOutline;
 
     if (showOutline) {
@@ -177,29 +263,61 @@ export function TileCanvas({
     }
   };
 
-  // Update active/preview track highlighting
+  // Update active/preview track highlighting and connection lines
   useEffect(() => {
     const baseSize = baseTileSizeRef.current;
     if (baseSize === 0) return;
 
-    // Reset ALL tiles to normal size and hide outlines
+    // Clear connection lines
+    if (linesGraphicsRef.current) {
+      linesGraphicsRef.current.clear();
+    }
+
+    // Reset ALL tiles to normal size, default alpha, and hide outlines
     tilesRef.current.forEach((tile) => {
-      updateTileAppearance(tile, 1, false, 0x000000);
+      updateTileAppearance(tile, 1, false, 0x000000, TILE_DEFAULT_ALPHA);
     });
 
-    // If activeTrack exists AND it's not the preview: scale it 2x, show black border
+    // If activeTrack exists AND it's not the preview: scale it 2x, show black border, full opacity
     if (activeTrack && (!previewTrack || previewTrack.id !== activeTrack.id)) {
       const tile = tilesRef.current.get(activeTrack.id);
       if (tile) {
-        updateTileAppearance(tile, 2, true, 0x000000);
+        updateTileAppearance(tile, 2, true, 0x000000, TILE_ACTIVE_ALPHA);
       }
     }
 
     // If previewTrack exists: scale it 2x, show red border (takes precedence)
     if (previewTrack) {
+      // Get connected tracks first so we can update their opacity
+      const connectedIds = getConnectedTrackIds(
+        previewTrack.id,
+        genreIndexRef.current,
+        trackGenresRef.current
+      );
+
+      // Set connected tiles to full opacity
+      for (const connectedId of connectedIds) {
+        const connectedTile = tilesRef.current.get(connectedId);
+        if (connectedTile) {
+          connectedTile.sprite.alpha = TILE_ACTIVE_ALPHA;
+        }
+      }
+
+      // Update the preview tile itself
       const tile = tilesRef.current.get(previewTrack.id);
       if (tile) {
-        updateTileAppearance(tile, 2, true, 0xff0000);
+        updateTileAppearance(tile, 2, true, 0xff0000, TILE_ACTIVE_ALPHA);
+      }
+
+      // Draw connection lines to tracks with shared genres
+      if (linesGraphicsRef.current) {
+        drawConnectionLines(
+          linesGraphicsRef.current,
+          previewTrack.id,
+          connectedIds,
+          tilesRef.current,
+          baseSize
+        );
       }
     }
   }, [activeTrack, previewTrack]);
@@ -262,6 +380,11 @@ export function TileCanvas({
       // Start slightly zoomed out with world centered
       viewport.setZoom(MIN_ZOOM, true);
 
+      // Create lines graphics layer (rendered below tiles)
+      const linesGraphics = new Graphics();
+      viewport.addChild(linesGraphics);
+      linesGraphicsRef.current = linesGraphics;
+
       // Create tiles container
       const tilesContainer = new Container();
       viewport.addChild(tilesContainer);
@@ -292,6 +415,7 @@ export function TileCanvas({
         sprite.height = tileSize;
         sprite.position.set(x, y);
         sprite.tint = 0xcccccc;
+        sprite.alpha = TILE_DEFAULT_ALPHA;
         sprite.eventMode = 'static';
 
         // Load artwork
@@ -324,6 +448,11 @@ export function TileCanvas({
 
         tilesContainer.addChild(sprite);
       }
+
+      // Build genre index after creating tiles
+      const { genreIndex, trackGenres } = buildGenreIndex(tracks);
+      genreIndexRef.current = genreIndex;
+      trackGenresRef.current = trackGenres;
 
       console.log('[TileCanvas] Created', tilesRef.current.size, 'tiles');
     }
@@ -368,6 +497,7 @@ export function TileCanvas({
           tileData.sprite.position.set(x, y);
           tileData.sprite.width = newTileSize;
           tileData.sprite.height = newTileSize;
+          tileData.sprite.alpha = TILE_DEFAULT_ALPHA;
 
           // Reset outline
           tileData.outline.clear();
@@ -388,6 +518,7 @@ export function TileCanvas({
             const size = newTileSize * 2;
             tile.sprite.width = size;
             tile.sprite.height = size;
+            tile.sprite.alpha = TILE_ACTIVE_ALPHA;
             tile.outline.clear();
             tile.outline.rect(-3, -3, size + 6, size + 6);
             tile.outline.stroke({ width: 3, color: 0x000000 });
@@ -397,15 +528,47 @@ export function TileCanvas({
 
         // Apply preview track highlighting (takes precedence with red border)
         if (currentPreviewTrack) {
+          // Get connected tracks and update their opacity
+          const connectedIds = getConnectedTrackIds(
+            currentPreviewTrack.id,
+            genreIndexRef.current,
+            trackGenresRef.current
+          );
+
+          // Set connected tiles to full opacity
+          for (const connectedId of connectedIds) {
+            const connectedTile = tilesRef.current.get(connectedId);
+            if (connectedTile) {
+              connectedTile.sprite.alpha = TILE_ACTIVE_ALPHA;
+            }
+          }
+
           const tile = tilesRef.current.get(currentPreviewTrack.id);
           if (tile) {
             const size = newTileSize * 2;
             tile.sprite.width = size;
             tile.sprite.height = size;
+            tile.sprite.alpha = TILE_ACTIVE_ALPHA;
             tile.outline.clear();
             tile.outline.rect(-3, -3, size + 6, size + 6);
             tile.outline.stroke({ width: 3, color: 0xff0000 });
             tile.outline.visible = true;
+          }
+
+          // Redraw connection lines with new positions
+          if (linesGraphicsRef.current) {
+            drawConnectionLines(
+              linesGraphicsRef.current,
+              currentPreviewTrack.id,
+              connectedIds,
+              tilesRef.current,
+              newTileSize
+            );
+          }
+        } else {
+          // Clear lines if no preview
+          if (linesGraphicsRef.current) {
+            linesGraphicsRef.current.clear();
           }
         }
       }
@@ -421,6 +584,9 @@ export function TileCanvas({
         appRef.current = null;
       }
       tilesRef.current.clear();
+      genreIndexRef.current.clear();
+      trackGenresRef.current.clear();
+      linesGraphicsRef.current = null;
     };
   }, [tracks, onHover, onHoverEnd, onClick]);
 
