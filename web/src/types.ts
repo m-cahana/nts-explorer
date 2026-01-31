@@ -28,3 +28,53 @@ export interface SoundCloudPlayerHandle {
   seekTo: (positionMs: number) => void;
   getPosition: () => number;
 }
+
+export interface GenreSection {
+  key: string;              // Primary genre: "hip hop"
+  displayLabel: string;     // Display text
+  tracks: Track[];
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  cols: number;
+  rows: number;
+}
+
+export interface GridLayout {
+  sections: GenreSection[];
+  totalWidth: number;
+  totalHeight: number;
+  tileSize: number;
+  gap: number;
+  dividerWidth: number;
+}
+
+// Continuous grid layout types
+export interface TilePosition {
+  trackId: number;
+  genreKey: string;
+  globalIndex: number;
+  col: number;
+  row: number;
+  x: number;
+  y: number;
+}
+
+export interface GenreGroup {
+  key: string;
+  displayLabel: string;
+  tracks: Track[];
+  tilePositions: TilePosition[];
+  labelPosition: { x: number; y: number };
+}
+
+export interface ContinuousGridLayout {
+  groups: GenreGroup[];
+  totalCols: number;
+  totalRows: number;
+  totalWidth: number;
+  totalHeight: number;
+  tileSize: number;
+  gap: number;
+}
