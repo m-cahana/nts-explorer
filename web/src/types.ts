@@ -29,52 +29,37 @@ export interface SoundCloudPlayerHandle {
   getPosition: () => number;
 }
 
-export interface GenreSection {
-  key: string;              // Primary genre: "hip hop"
-  displayLabel: string;     // Display text
-  tracks: Track[];
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  cols: number;
-  rows: number;
-}
-
-export interface GridLayout {
-  sections: GenreSection[];
-  totalWidth: number;
-  totalHeight: number;
-  tileSize: number;
-  gap: number;
-  dividerWidth: number;
-}
-
-// Continuous grid layout types
-export interface TilePosition {
+export interface CircleTilePosition {
   trackId: number;
-  genreKey: string;
-  globalIndex: number;
-  col: number;
-  row: number;
-  x: number;
+  comboKey: string;       // e.g., "funk/soul"
+  x: number;              // Position relative to circle center
   y: number;
+  ring: number;
+  angleIndex: number;
 }
 
-export interface GenreGroup {
-  key: string;
-  displayLabel: string;
+export interface GenreComboNode {
+  key: string;                    // Sorted combo key: "funk/soul"
+  genres: string[];               // Individual genres: ["funk", "soul"]
+  displayLabel: string;           // "funk / soul"
   tracks: Track[];
-  tilePositions: TilePosition[];
-  labelPosition: { x: number; y: number };
+  tilePositions: CircleTilePosition[];
+  radius: number;                 // Radius of outermost ring
+  cx: number;                     // World x (set by graph layout)
+  cy: number;                     // World y
 }
 
-export interface ContinuousGridLayout {
-  groups: GenreGroup[];
-  totalCols: number;
-  totalRows: number;
+export interface GenreEdge {
+  sourceKey: string;
+  targetKey: string;
+  sharedGenres: string[];
+}
+
+export interface CircleGraphLayout {
+  nodes: GenreComboNode[];
+  edges: GenreEdge[];
+  nodeMap: Map<string, GenreComboNode>;
   totalWidth: number;
   totalHeight: number;
   tileSize: number;
-  gap: number;
 }
