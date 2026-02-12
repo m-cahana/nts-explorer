@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTracks } from './hooks/useTracks';
 import { useAvailableYears } from './hooks/useAvailableYears';
 import { LoadingScreen } from './components/LoadingScreen';
-import { TileCanvas } from './components/TileCanvas';
+import { GenreLines } from './components/GenreLines';
 import { SoundCloudPlayer } from './components/SoundCloudPlayer';
 import { NowPlayingPill } from './components/NowPlayingPill';
 import { ProgressPill } from './components/ProgressPill';
@@ -154,7 +154,7 @@ function App() {
 
       {hasEntered && (
         <>
-          <TileCanvas
+          <GenreLines
             tracks={tracks}
             activeTrack={activeTrack}
             previewTrack={previewTrack}

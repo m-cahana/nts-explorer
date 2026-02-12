@@ -1,0 +1,120 @@
+.genre-lines {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: row;
+  padding: 0 40px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.genre-slot {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  cursor: pointer;
+  position: relative;
+  transition: flex 0.4s ease;
+  min-width: 0;
+}
+
+.genre-slot--expanded {
+  flex: 0 0 auto;
+  width: 65vw;
+  align-items: stretch;
+  cursor: default;
+}
+
+.genre-line {
+  width: 2px;
+  height: 160px;
+  background: #000000;
+  flex-shrink: 0;
+  transition:
+    height 0.4s ease,
+    width 0.15s ease;
+}
+
+.genre-slot:not(.genre-slot--expanded):hover .genre-line {
+  width: 3px;
+}
+
+.genre-slot--expanded .genre-line {
+  height: 100%;
+}
+
+.genre-label {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  font-size: 24px;
+  font-family: "Futura", "Trebuchet MS", Arial, sans-serif;
+  font-weight: bold;
+  color: #000000;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease 0.15s;
+}
+
+.genre-slot--expanded .genre-label {
+  opacity: 1;
+}
+
+.track-grid-container {
+  flex: 1;
+  overflow: hidden;
+  animation: fadeSlideIn 0.35s ease both;
+  min-width: 0;
+  position: relative;
+  padding-top: 56px;
+}
+
+.track-grid-transform {
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.track-grid {
+  display: grid;
+  column-gap: 6px;
+  row-gap: 6px;
+}
+
+.track-tile {
+  aspect-ratio: 1 / 1;
+  background: #cccccc;
+  position: relative;
+}
+
+.track-tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.track-tile--active {
+  outline: 2px solid #000000;
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+.track-tile--preview {
+  outline: 2px solid #ff0000;
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

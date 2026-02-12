@@ -29,37 +29,15 @@ export interface SoundCloudPlayerHandle {
   getPosition: () => number;
 }
 
-export interface CircleTilePosition {
-  trackId: number;
-  comboKey: string;       // e.g., "funk/soul"
-  x: number;              // Position relative to circle center
-  y: number;
-  ring: number;
-  angleIndex: number;
-}
-
-export interface GenreComboNode {
-  key: string;                    // Sorted combo key: "funk/soul"
-  genres: string[];               // Individual genres: ["funk", "soul"]
-  displayLabel: string;           // "funk / soul"
+export interface GenreGroup {
+  genre: string;
+  displayLabel: string;
   tracks: Track[];
-  tilePositions: CircleTilePosition[];
-  radius: number;                 // Radius of outermost ring
-  cx: number;                     // World x (set by graph layout)
-  cy: number;                     // World y
+  tagProfile: Map<string, number>;
 }
 
-export interface GenreEdge {
-  sourceKey: string;
-  targetKey: string;
-  sharedGenres: string[];
-}
-
-export interface CircleGraphLayout {
-  nodes: GenreComboNode[];
-  edges: GenreEdge[];
-  nodeMap: Map<string, GenreComboNode>;
-  totalWidth: number;
-  totalHeight: number;
-  tileSize: number;
+export interface GridLayout {
+  orderedGroups: GenreGroup[];
+  flatTracks: Track[];
+  groupBoundaries: number[];
 }
