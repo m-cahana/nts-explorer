@@ -6,6 +6,7 @@
   padding: 0 40px;
   background: #ffffff;
   overflow: hidden;
+  cursor: none;
 }
 
 .genre-slot {
@@ -14,7 +15,6 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  cursor: pointer;
   position: relative;
   transition: flex 0.4s ease;
   min-width: 0;
@@ -24,7 +24,6 @@
   flex: 0 0 auto;
   width: 65vw;
   align-items: stretch;
-  cursor: default;
 }
 
 .genre-line {
@@ -52,11 +51,13 @@
   font-size: 24px;
   font-family: "Futura", "Trebuchet MS", Arial, sans-serif;
   font-weight: bold;
-  color: #000000;
+  color: #ffffff;
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.3s ease 0.15s;
+  mix-blend-mode: difference;
+  z-index: 2;
 }
 
 .genre-slot--expanded .genre-label {
@@ -106,6 +107,14 @@
   outline: 2px solid #ff0000;
   outline-offset: -2px;
   z-index: 1;
+}
+
+.custom-cursor {
+  position: fixed;
+  pointer-events: none;
+  mix-blend-mode: difference;
+  z-index: 9999;
+  transform: translate(-16px, -16px);
 }
 
 @keyframes fadeSlideIn {

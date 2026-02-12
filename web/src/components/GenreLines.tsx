@@ -1,16 +1,58 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { computeGridLayout } from "../lib/genreLayout";
 import type { Track, GenreGroup } from "../types";
 import "./GenreLines.css";
 
-// Custom cursor SVGs
-const CURSOR_DEFAULT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E") 16 16, auto`;
-const CURSOR_ZOOM_IN = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='black' stroke-width='2'/%3E%3Cline x1='10' y1='16' x2='22' y2='16' stroke='black' stroke-width='2'/%3E%3Cline x1='16' y1='10' x2='16' y2='22' stroke='black' stroke-width='2'/%3E%3C/svg%3E") 16 16, auto`;
-const CURSOR_ZOOM_OUT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='black' stroke-width='2'/%3E%3Cline x1='10' y1='16' x2='22' y2='16' stroke='black' stroke-width='2'/%3E%3C/svg%3E") 16 16, auto`;
-const CURSOR_ARROW_LEFT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='black' stroke-width='2'/%3E%3Cline x1='9' y1='16' x2='23' y2='16' stroke='black' stroke-width='2'/%3E%3Cpath d='M9 16 L14 11 M9 16 L14 21' stroke='black' stroke-width='2' fill='none'/%3E%3C/svg%3E") 16 16, auto`;
-const CURSOR_ARROW_RIGHT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='black' stroke-width='2'/%3E%3Cline x1='9' y1='16' x2='23' y2='16' stroke='black' stroke-width='2'/%3E%3Cpath d='M23 16 L18 11 M23 16 L18 21' stroke='black' stroke-width='2' fill='none'/%3E%3C/svg%3E") 16 16, auto`;
-const CURSOR_ARROW_UP = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='black' stroke-width='2'/%3E%3Cline x1='16' y1='9' x2='16' y2='23' stroke='black' stroke-width='2'/%3E%3Cpath d='M16 9 L11 14 M16 9 L21 14' stroke='black' stroke-width='2' fill='none'/%3E%3C/svg%3E") 16 16, auto`;
-const CURSOR_ARROW_DOWN = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='black' stroke-width='2'/%3E%3Cline x1='16' y1='9' x2='16' y2='23' stroke='black' stroke-width='2'/%3E%3Cpath d='M16 23 L11 18 M16 23 L21 18' stroke='black' stroke-width='2' fill='none'/%3E%3C/svg%3E") 16 16, auto`;
+type CursorType =
+  | "default"
+  | "zoom-in"
+  | "zoom-out"
+  | "arrow-left"
+  | "arrow-right"
+  | "arrow-up"
+  | "arrow-down";
+
+function CursorSVG({ type }: { type: CursorType }) {
+  return (
+    <svg width="32" height="32" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="14" fill="none" stroke="white" strokeWidth="2" />
+      {type === "zoom-in" && (
+        <>
+          <line x1="10" y1="16" x2="22" y2="16" stroke="white" strokeWidth="2" />
+          <line x1="16" y1="10" x2="16" y2="22" stroke="white" strokeWidth="2" />
+        </>
+      )}
+      {type === "zoom-out" && (
+        <line x1="10" y1="16" x2="22" y2="16" stroke="white" strokeWidth="2" />
+      )}
+      {type === "arrow-left" && (
+        <>
+          <line x1="9" y1="16" x2="23" y2="16" stroke="white" strokeWidth="2" />
+          <path d="M9 16 L14 11 M9 16 L14 21" stroke="white" strokeWidth="2" fill="none" />
+        </>
+      )}
+      {type === "arrow-right" && (
+        <>
+          <line x1="9" y1="16" x2="23" y2="16" stroke="white" strokeWidth="2" />
+          <path d="M23 16 L18 11 M23 16 L18 21" stroke="white" strokeWidth="2" fill="none" />
+        </>
+      )}
+      {type === "arrow-up" && (
+        <>
+          <line x1="16" y1="9" x2="16" y2="23" stroke="white" strokeWidth="2" />
+          <path d="M16 9 L11 14 M16 9 L21 14" stroke="white" strokeWidth="2" fill="none" />
+        </>
+      )}
+      {type === "arrow-down" && (
+        <>
+          <line x1="16" y1="9" x2="16" y2="23" stroke="white" strokeWidth="2" />
+          <path d="M16 23 L11 18 M16 23 L21 18" stroke="white" strokeWidth="2" fill="none" />
+        </>
+      )}
+    </svg>
+  );
+}
 
 const COL_GAP = 6;
 const ROW_GAP = 6;
@@ -33,7 +75,7 @@ interface Transform {
 }
 
 interface ZoomPanResult extends Transform {
-  cursor: string;
+  cursorType: CursorType;
   wasRecentDrag: () => boolean;
 }
 
@@ -47,7 +89,7 @@ function useZoomPan(
     translateX: 0,
     translateY: 0,
   });
-  const [cursor, setCursor] = useState(CURSOR_DEFAULT);
+  const [cursorType, setCursorType] = useState<CursorType>("default");
   const transformRef = useRef(transform);
   transformRef.current = transform;
   const fitTransformRef = useRef(fitTransform);
@@ -126,10 +168,10 @@ function useZoomPan(
       transformRef.current = next;
       setTransform(next);
 
-      setCursor(e.deltaY > 0 ? CURSOR_ZOOM_OUT : CURSOR_ZOOM_IN);
+      setCursorType(e.deltaY > 0 ? "zoom-out" : "zoom-in");
       if (cursorTimeoutRef.current) clearTimeout(cursorTimeoutRef.current);
       cursorTimeoutRef.current = setTimeout(
-        () => setCursor(CURSOR_DEFAULT),
+        () => setCursorType("default"),
         150,
       );
     };
@@ -169,9 +211,9 @@ function useZoomPan(
         const moveDy = e.clientY - lastMovePos.current.y;
         if (Math.abs(moveDx) > 2 || Math.abs(moveDy) > 2) {
           if (Math.abs(moveDx) > Math.abs(moveDy)) {
-            setCursor(moveDx > 0 ? CURSOR_ARROW_LEFT : CURSOR_ARROW_RIGHT);
+            setCursorType(moveDx > 0 ? "arrow-left" : "arrow-right");
           } else {
-            setCursor(moveDy > 0 ? CURSOR_ARROW_UP : CURSOR_ARROW_DOWN);
+            setCursorType(moveDy > 0 ? "arrow-up" : "arrow-down");
           }
           lastMovePos.current = { x: e.clientX, y: e.clientY };
         }
@@ -186,7 +228,7 @@ function useZoomPan(
         }
       }
       isPointerDown.current = false;
-      setCursor(CURSOR_DEFAULT);
+      setCursorType("default");
     };
 
     el.addEventListener("wheel", handleWheel, { passive: false });
@@ -208,7 +250,7 @@ function useZoomPan(
     [],
   );
 
-  return { ...transform, cursor, wasRecentDrag };
+  return { ...transform, cursorType, wasRecentDrag };
 }
 
 // --- TrackGrid sub-component ---
@@ -220,6 +262,7 @@ interface TrackGridProps {
   onHover: (track: Track) => void;
   onHoverEnd: () => void;
   onClick: (track: Track) => void;
+  onCursorTypeChange: (type: CursorType) => void;
 }
 
 function TrackGrid({
@@ -229,6 +272,7 @@ function TrackGrid({
   onHover,
   onHoverEnd,
   onClick,
+  onCursorTypeChange,
 }: TrackGridProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState<{
@@ -323,8 +367,12 @@ function TrackGrid({
     return { width: gridParams.gridWidth, height: gridParams.gridHeight };
   }, [gridParams]);
 
-  const { scale, translateX, translateY, cursor, wasRecentDrag } =
+  const { scale, translateX, translateY, cursorType, wasRecentDrag } =
     useZoomPan(viewportRef, fitTransform, contentSize);
+
+  useEffect(() => {
+    onCursorTypeChange(cursorType);
+  }, [cursorType, onCursorTypeChange]);
 
   const handleTileClick = useCallback(
     (track: Track) => {
@@ -341,7 +389,7 @@ function TrackGrid({
   const { columns, tileSize } = gridParams;
 
   return (
-    <div className="track-grid-container" ref={viewportRef} style={{ cursor }}>
+    <div className="track-grid-container" ref={viewportRef}>
       <div
         className="track-grid-transform"
         style={{
@@ -411,6 +459,8 @@ export function GenreLines({
   onClick,
 }: GenreLinesProps) {
   const [expandedGenre, setExpandedGenre] = useState<string | null>(null);
+  const [cursorType, setCursorType] = useState<CursorType>("default");
+  const cursorRef = useRef<HTMLDivElement>(null);
 
   const orderedGroups = useMemo<GenreGroup[]>(() => {
     if (tracks.length === 0) return [];
@@ -422,6 +472,24 @@ export function GenreLines({
   useEffect(() => {
     setExpandedGenre(null);
   }, [tracks]);
+
+  // Reset cursor when genre collapses
+  useEffect(() => {
+    setCursorType("default");
+  }, [expandedGenre]);
+
+  // Track mouse position globally for cursor overlay
+  useEffect(() => {
+    const handleMove = (e: PointerEvent) => {
+      const cur = cursorRef.current;
+      if (cur) {
+        cur.style.left = `${e.clientX}px`;
+        cur.style.top = `${e.clientY}px`;
+      }
+    };
+    document.addEventListener("pointermove", handleMove);
+    return () => document.removeEventListener("pointermove", handleMove);
+  }, []);
 
   // Stable callback refs to avoid re-renders
   const onHoverRef = useRef(onHover);
@@ -451,44 +519,62 @@ export function GenreLines({
   );
 
   if (orderedGroups.length === 0) {
-    return <div className="genre-lines" />;
+    return (
+      <>
+        <div className="genre-lines" />
+        {createPortal(
+          <div ref={cursorRef} className="custom-cursor">
+            <CursorSVG type={cursorType} />
+          </div>,
+          document.body,
+        )}
+      </>
+    );
   }
 
   return (
-    <div className="genre-lines">
-      {orderedGroups.map((group) => {
-        const isExpanded = expandedGenre === group.genre;
+    <>
+      <div className="genre-lines">
+        {orderedGroups.map((group) => {
+          const isExpanded = expandedGenre === group.genre;
 
-        return (
-          <div
-            key={group.genre}
-            className={`genre-slot${isExpanded ? " genre-slot--expanded" : ""}`}
-            onClick={
-              isExpanded ? undefined : () => handleSlotClick(group.genre)
-            }
-          >
+          return (
             <div
-              className="genre-line"
+              key={group.genre}
+              className={`genre-slot${isExpanded ? " genre-slot--expanded" : ""}`}
               onClick={
-                isExpanded ? () => handleSlotClick(group.genre) : undefined
+                isExpanded ? undefined : () => handleSlotClick(group.genre)
               }
-              style={isExpanded ? { cursor: "pointer" } : undefined}
-            />
-            <span className="genre-label">{group.displayLabel}</span>
-            {isExpanded && (
-              <TrackGrid
-                key={expandedGenre}
-                tracks={group.tracks}
-                activeTrack={activeTrack}
-                previewTrack={previewTrack}
-                onHover={handleHover}
-                onHoverEnd={handleHoverEnd}
-                onClick={handleClick}
+            >
+              <div
+                className="genre-line"
+                onClick={
+                  isExpanded ? () => handleSlotClick(group.genre) : undefined
+                }
               />
-            )}
-          </div>
-        );
-      })}
-    </div>
+              <span className="genre-label">{group.displayLabel}</span>
+              {isExpanded && (
+                <TrackGrid
+                  key={expandedGenre}
+                  tracks={group.tracks}
+                  activeTrack={activeTrack}
+                  previewTrack={previewTrack}
+                  onHover={handleHover}
+                  onHoverEnd={handleHoverEnd}
+                  onClick={handleClick}
+                  onCursorTypeChange={setCursorType}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {createPortal(
+        <div ref={cursorRef} className="custom-cursor">
+          <CursorSVG type={cursorType} />
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
