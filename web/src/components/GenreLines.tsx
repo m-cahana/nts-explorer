@@ -464,12 +464,42 @@ export function GenreLines({
   const cursorRef = useRef<HTMLDivElement>(null);
   const [hoveredGenre, setHoveredGenre] = useState<string | null>(null);
   const [hoverPreviewTrack, setHoverPreviewTrack] = useState<Track | null>(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const [scrollThumb, setScrollThumb] = useState<{ top: number; height: number } | null>(null);
 
   const orderedGroups = useMemo<GenreGroup[]>(() => {
     if (tracks.length === 0) return [];
     const layout = computeGridLayout(tracks);
     return layout.orderedGroups;
   }, [tracks]);
+
+  // Custom scrollbar tracking
+  useEffect(() => {
+    const el = sidebarRef.current;
+    if (!el) return;
+
+    const update = () => {
+      const { scrollTop, scrollHeight, clientHeight } = el;
+      if (scrollHeight <= clientHeight) {
+        setScrollThumb(null);
+        return;
+      }
+      const ratio = clientHeight / scrollHeight;
+      const thumbH = Math.max(20, ratio * clientHeight);
+      const maxTop = clientHeight - thumbH;
+      const top = (scrollTop / (scrollHeight - clientHeight)) * maxTop;
+      setScrollThumb({ top, height: thumbH });
+    };
+
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, [orderedGroups]);
 
   // Reset expanded genre when tracks change (e.g. year filter)
   useEffect(() => {
@@ -523,13 +553,12 @@ export function GenreLines({
 
   const handleGenrePointerEnter = useCallback(
     (group: GenreGroup) => {
-      if (expandedGenre) return; // Don't preview when a genre is expanded
       const randomTrack = group.tracks[Math.floor(Math.random() * group.tracks.length)];
       setHoveredGenre(group.genre);
       setHoverPreviewTrack(randomTrack);
       onHoverRef.current(randomTrack);
     },
-    [expandedGenre],
+    [],
   );
 
   const handleGenrePointerLeave = useCallback(() => {
@@ -552,59 +581,69 @@ export function GenreLines({
     );
   }
 
+  const expandedGroup = orderedGroups.find((g) => g.genre === expandedGenre);
+
   return (
     <>
-      <div className="genre-lines" onClick={() => setExpandedGenre(null)}>
-        {orderedGroups.map((group) => {
-          const isExpanded = expandedGenre === group.genre;
-          const isHovered = hoveredGenre === group.genre;
+      <div className="genre-lines">
+        <div className="genre-sidebar-wrapper">
+          <div className="genre-sidebar" ref={sidebarRef}>
+            {orderedGroups.map((group) => {
+              const isExpanded = expandedGenre === group.genre;
+              const isHovered = hoveredGenre === group.genre;
 
-          return (
-            <div
-              key={group.genre}
-              className={`genre-slot${isExpanded ? " genre-slot--expanded" : ""}`}
-            >
-              {/* Hover preview tile */}
-              {isHovered && hoverPreviewTrack && !isExpanded && (
-                <div className="genre-preview-tile">
-                  <img
-                    src={getArtworkUrl(hoverPreviewTrack.artwork_url, "t67x67")}
-                    alt=""
-                    draggable={false}
-                  />
+              return (
+                <div
+                  key={group.genre}
+                  className={`genre-slot${isExpanded ? " genre-slot--expanded" : ""}`}
+                  onPointerEnter={() => handleGenrePointerEnter(group)}
+                  onPointerLeave={handleGenrePointerLeave}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSlotClick(group.genre);
+                  }}
+                >
+                  <span className="genre-text">{group.displayLabel}</span>
+                  {isHovered && hoverPreviewTrack && (
+                    <div className="genre-preview-tile">
+                      <img
+                        src={getArtworkUrl(hoverPreviewTrack.artwork_url, "t67x67")}
+                        alt=""
+                        draggable={false}
+                      />
+                    </div>
+                  )}
                 </div>
-              )}
-
-              {/* Vertical text (collapsed state) — clickable to expand */}
-              <span
-                className={`genre-text${isExpanded ? " genre-text--hidden" : ""}`}
-                onPointerEnter={() => handleGenrePointerEnter(group)}
-                onPointerLeave={handleGenrePointerLeave}
-                onClick={!isExpanded ? (e) => { e.stopPropagation(); handleSlotClick(group.genre); } : undefined}
-              >
-                {group.displayLabel}
-              </span>
-
-              {/* Horizontal text (expanded state) */}
-              <span className={`genre-text--horizontal${isExpanded ? " genre-text--horizontal-visible" : ""}`}>
-                {group.displayLabel}
-              </span>
-
-              {isExpanded && (
-                <TrackGrid
-                  key={expandedGenre}
-                  tracks={group.tracks}
-                  activeTrack={activeTrack}
-                  previewTrack={previewTrack}
-                  onHover={handleHover}
-                  onHoverEnd={handleHoverEnd}
-                  onClick={handleClick}
-                  onCursorTypeChange={setCursorType}
-                />
-              )}
+              );
+            })}
+          </div>
+          {scrollThumb && (
+            <div className="genre-scrollbar-track">
+              <div
+                className="genre-scrollbar-thumb"
+                style={{ top: scrollThumb.top, height: scrollThumb.height }}
+              />
             </div>
-          );
-        })}
+          )}
+        </div>
+
+        <div className="genre-content" onClick={() => setExpandedGenre(null)}>
+          {expandedGroup && (
+            <>
+              <span className="genre-title">{expandedGroup.displayLabel}</span>
+              <TrackGrid
+                key={expandedGenre}
+                tracks={expandedGroup.tracks}
+                activeTrack={activeTrack}
+                previewTrack={previewTrack}
+                onHover={handleHover}
+                onHoverEnd={handleHoverEnd}
+                onClick={handleClick}
+                onCursorTypeChange={setCursorType}
+              />
+            </>
+          )}
+        </div>
       </div>
       {createPortal(
         <div ref={cursorRef} className="custom-cursor">
