@@ -24,14 +24,23 @@
 }
 
 .bottom-bar__label {
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: 14px;
-  color: #888;
+  font-weight: 700;
+  color: #f30000;
   line-height: 1.2;
 }
 
 .bottom-bar__title {
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
@@ -131,7 +140,9 @@
   height: 8px;
   background: #000;
   border-radius: 50%;
-  transition: width 0.1s, height 0.1s;
+  transition:
+    width 0.1s,
+    height 0.1s;
 }
 
 .bottom-bar__progress-dot--dragging {
@@ -140,7 +151,11 @@
 }
 
 .bottom-bar__time {
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: 12px;
   color: #666;
   min-width: 45px;

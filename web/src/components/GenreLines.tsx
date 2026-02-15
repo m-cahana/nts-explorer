@@ -16,11 +16,32 @@ type CursorType =
 function CursorSVG({ type }: { type: CursorType }) {
   return (
     <svg width="32" height="32" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="14" fill="none" stroke="white" strokeWidth="2" />
+      <circle
+        cx="16"
+        cy="16"
+        r="14"
+        fill="none"
+        stroke="white"
+        strokeWidth="2"
+      />
       {type === "zoom-in" && (
         <>
-          <line x1="10" y1="16" x2="22" y2="16" stroke="white" strokeWidth="2" />
-          <line x1="16" y1="10" x2="16" y2="22" stroke="white" strokeWidth="2" />
+          <line
+            x1="10"
+            y1="16"
+            x2="22"
+            y2="16"
+            stroke="white"
+            strokeWidth="2"
+          />
+          <line
+            x1="16"
+            y1="10"
+            x2="16"
+            y2="22"
+            stroke="white"
+            strokeWidth="2"
+          />
         </>
       )}
       {type === "zoom-out" && (
@@ -29,25 +50,45 @@ function CursorSVG({ type }: { type: CursorType }) {
       {type === "arrow-left" && (
         <>
           <line x1="9" y1="16" x2="23" y2="16" stroke="white" strokeWidth="2" />
-          <path d="M9 16 L14 11 M9 16 L14 21" stroke="white" strokeWidth="2" fill="none" />
+          <path
+            d="M9 16 L14 11 M9 16 L14 21"
+            stroke="white"
+            strokeWidth="2"
+            fill="none"
+          />
         </>
       )}
       {type === "arrow-right" && (
         <>
           <line x1="9" y1="16" x2="23" y2="16" stroke="white" strokeWidth="2" />
-          <path d="M23 16 L18 11 M23 16 L18 21" stroke="white" strokeWidth="2" fill="none" />
+          <path
+            d="M23 16 L18 11 M23 16 L18 21"
+            stroke="white"
+            strokeWidth="2"
+            fill="none"
+          />
         </>
       )}
       {type === "arrow-up" && (
         <>
           <line x1="16" y1="9" x2="16" y2="23" stroke="white" strokeWidth="2" />
-          <path d="M16 9 L11 14 M16 9 L21 14" stroke="white" strokeWidth="2" fill="none" />
+          <path
+            d="M16 9 L11 14 M16 9 L21 14"
+            stroke="white"
+            strokeWidth="2"
+            fill="none"
+          />
         </>
       )}
       {type === "arrow-down" && (
         <>
           <line x1="16" y1="9" x2="16" y2="23" stroke="white" strokeWidth="2" />
-          <path d="M16 23 L11 18 M16 23 L21 18" stroke="white" strokeWidth="2" fill="none" />
+          <path
+            d="M16 23 L11 18 M16 23 L21 18"
+            stroke="white"
+            strokeWidth="2"
+            fill="none"
+          />
         </>
       )}
     </svg>
@@ -315,9 +356,7 @@ function TrackGrid({
 
     while (lo < hi) {
       const mid = Math.ceil((lo + hi) / 2);
-      const cols = Math.floor(
-        (cw - 2 * GRID_PAD + COL_GAP) / (mid + COL_GAP),
-      );
+      const cols = Math.floor((cw - 2 * GRID_PAD + COL_GAP) / (mid + COL_GAP));
       if (cols < 1) {
         hi = mid - 1;
         continue;
@@ -339,8 +378,7 @@ function TrackGrid({
     const rows = Math.ceil(n / columns);
     const gridWidth =
       columns * tileSize + (columns - 1) * COL_GAP + 2 * GRID_PAD;
-    const gridHeight =
-      rows * tileSize + (rows - 1) * ROW_GAP + 2 * GRID_PAD;
+    const gridHeight = rows * tileSize + (rows - 1) * ROW_GAP + 2 * GRID_PAD;
 
     return { columns, tileSize, gridWidth, gridHeight };
   }, [tracks.length, containerSize]);
@@ -390,7 +428,11 @@ function TrackGrid({
   const { columns, tileSize } = gridParams;
 
   return (
-    <div className="track-grid-container" ref={viewportRef} onClick={(e) => e.stopPropagation()}>
+    <div
+      className="track-grid-container"
+      ref={viewportRef}
+      onClick={(e) => e.stopPropagation()}
+    >
       <div
         className="track-grid-transform"
         style={{
@@ -463,9 +505,14 @@ export function GenreLines({
   const [cursorType, setCursorType] = useState<CursorType>("default");
   const cursorRef = useRef<HTMLDivElement>(null);
   const [hoveredGenre, setHoveredGenre] = useState<string | null>(null);
-  const [hoverPreviewTrack, setHoverPreviewTrack] = useState<Track | null>(null);
+  const [hoverPreviewTrack, setHoverPreviewTrack] = useState<Track | null>(
+    null,
+  );
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const [scrollThumb, setScrollThumb] = useState<{ top: number; height: number } | null>(null);
+  const [scrollThumb, setScrollThumb] = useState<{
+    top: number;
+    height: number;
+  } | null>(null);
 
   const orderedGroups = useMemo<GenreGroup[]>(() => {
     if (tracks.length === 0) return [];
@@ -544,22 +591,17 @@ export function GenreLines({
     onClickRef.current(track);
   }, []);
 
-  const handleSlotClick = useCallback(
-    (genre: string) => {
-      setExpandedGenre((prev) => (prev === genre ? null : genre));
-    },
-    [],
-  );
+  const handleSlotClick = useCallback((genre: string) => {
+    setExpandedGenre((prev) => (prev === genre ? null : genre));
+  }, []);
 
-  const handleGenrePointerEnter = useCallback(
-    (group: GenreGroup) => {
-      const randomTrack = group.tracks[Math.floor(Math.random() * group.tracks.length)];
-      setHoveredGenre(group.genre);
-      setHoverPreviewTrack(randomTrack);
-      onHoverRef.current(randomTrack);
-    },
-    [],
-  );
+  const handleGenrePointerEnter = useCallback((group: GenreGroup) => {
+    const randomTrack =
+      group.tracks[Math.floor(Math.random() * group.tracks.length)];
+    setHoveredGenre(group.genre);
+    setHoverPreviewTrack(randomTrack);
+    onHoverRef.current(randomTrack);
+  }, []);
 
   const handleGenrePointerLeave = useCallback(() => {
     setHoveredGenre(null);
@@ -607,7 +649,10 @@ export function GenreLines({
                   {isHovered && hoverPreviewTrack && (
                     <div className="genre-preview-tile">
                       <img
-                        src={getArtworkUrl(hoverPreviewTrack.artwork_url, "t67x67")}
+                        src={getArtworkUrl(
+                          hoverPreviewTrack.artwork_url,
+                          "t67x67",
+                        )}
                         alt=""
                         draggable={false}
                       />

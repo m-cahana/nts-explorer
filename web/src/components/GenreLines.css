@@ -115,10 +115,11 @@
   font-family: "Futura", "Trebuchet MS", Arial, sans-serif;
   font-size: 24px;
   font-weight: bold;
-  color: #000;
+  color: #ffffff;
   white-space: nowrap;
   pointer-events: none;
   z-index: 2;
+  mix-blend-mode: difference;
 }
 
 .track-grid-container {
@@ -154,15 +155,10 @@
   object-fit: cover;
 }
 
-.track-tile--active {
-  outline: 2px solid #000000;
-  outline-offset: -2px;
-  z-index: 1;
-}
-
+.track-tile--active,
 .track-tile--preview {
-  outline: 2px solid #ff0000;
-  outline-offset: -2px;
+  transform: scale(2);
+  transform-origin: center;
   z-index: 1;
 }
 
