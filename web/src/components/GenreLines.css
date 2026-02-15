@@ -180,3 +180,8 @@
     transform: translateX(0);
   }
 }
+
+@media (max-width: 600px) {
+  .genre-lines { display: none; }
+  .custom-cursor { display: none; }
+}

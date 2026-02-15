@@ -1,8 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTracks } from './hooks/useTracks';
 import { useAvailableYears } from './hooks/useAvailableYears';
+import { useIsMobile } from './hooks/useIsMobile';
 import { LoadingScreen } from './components/LoadingScreen';
 import { GenreLines } from './components/GenreLines';
+import { MobileTopBar } from './components/MobileTopBar';
+import { MobileGenreScroll } from './components/MobileGenreScroll';
 import { SoundCloudPlayer } from './components/SoundCloudPlayer';
 import { BottomBar } from './components/BottomBar';
 import type { Track, SoundCloudPlayerHandle } from './types';
@@ -11,6 +14,7 @@ const PREVIEW_START_MS = 300000; // 5 minutes
 const DEFAULT_YEAR = 2025;
 
 function App() {
+  const isMobile = useIsMobile();
   const [selectedYear, setSelectedYear] = useState(DEFAULT_YEAR);
   const { years, loading: yearsLoading } = useAvailableYears();
   const { tracks, loading, progress, error } = useTracks(selectedYear);
@@ -152,14 +156,33 @@ function App() {
 
       {hasEntered && (
         <>
-          <GenreLines
-            tracks={tracks}
-            activeTrack={activeTrack}
-            previewTrack={previewTrack}
-            onHover={handleHover}
-            onHoverEnd={handleHoverEnd}
-            onClick={handleClick}
-          />
+          {isMobile ? (
+            <>
+              <MobileTopBar
+                activeTrack={activeTrack}
+                previewTrack={previewTrack}
+                years={years}
+                selectedYear={selectedYear}
+                onYearChange={handleYearChange}
+                isLoading={loading || yearsLoading}
+              />
+              <MobileGenreScroll
+                tracks={tracks}
+                onHover={handleHover}
+                onHoverEnd={handleHoverEnd}
+                onClick={handleClick}
+              />
+            </>
+          ) : (
+            <GenreLines
+              tracks={tracks}
+              activeTrack={activeTrack}
+              previewTrack={previewTrack}
+              onHover={handleHover}
+              onHoverEnd={handleHoverEnd}
+              onClick={handleClick}
+            />
+          )}
 
           <SoundCloudPlayer
             ref={mainPlayerRef}

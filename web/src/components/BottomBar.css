@@ -160,3 +160,22 @@
   color: #666;
   min-width: 45px;
 }
+
+@media (max-width: 600px) {
+  .bottom-bar {
+    height: 50px;
+    padding: 0 16px;
+    border-top: 1px solid #000;
+  }
+  .bottom-bar__left,
+  .bottom-bar__center {
+    display: none;
+  }
+  .bottom-bar__right {
+    flex: 1;
+  }
+  .bottom-bar__progress-bar {
+    flex: 1;
+    width: auto;
+  }
+}

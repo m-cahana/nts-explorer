@@ -1,0 +1,55 @@
+.mobile-scroll {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 50px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #ffffff;
+}
+
+.mobile-scroll__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0 60px;
+}
+
+.mobile-genre-label {
+  font-family: "Futura", "Trebuchet MS", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: #000;
+  text-transform: lowercase;
+  padding: 0 24px;
+  align-self: flex-start;
+  margin-top: 20px;
+}
+
+.mobile-genre-label:first-child {
+  margin-top: 0;
+}
+
+.mobile-genre-divider {
+  width: calc(100% - 48px);
+  border: none;
+  border-top: 1px solid #000;
+  margin: 4px 24px 8px;
+}
+
+.mobile-tile {
+  width: 25vw;
+  max-width: 120px;
+  aspect-ratio: 1 / 1;
+  margin: 4px 0;
+  overflow: hidden;
+  will-change: transform;
+}
+
+.mobile-tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
