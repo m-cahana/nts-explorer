@@ -59,11 +59,11 @@ const ROW_GAP = 6;
 const GRID_PAD = 20;
 const MIN_TILE_SIZE = 16;
 
-function getArtworkUrl(url: string | null): string {
+function getArtworkUrl(url: string | null, size = "t500x500"): string {
   if (!url) return "";
   return url
-    .replace(/-large\./, "-t500x500.")
-    .replace(/-t\d+x\d+\./, "-t500x500.");
+    .replace(/-large\./, `-${size}.`)
+    .replace(/-t\d+x\d+\./, `-${size}.`);
 }
 
 // --- useZoomPan hook ---
@@ -97,8 +97,6 @@ function useZoomPan(
   const contentSizeRef = useRef(contentSize);
   contentSizeRef.current = contentSize;
 
-  // Clamp translation so the grid edges never pull past the viewport edges.
-  // When the rendered grid is smaller than the viewport in a dimension, center it.
   const clamp = (t: Transform): Transform => {
     const el = viewportRef.current;
     const cs = contentSizeRef.current;
@@ -128,7 +126,6 @@ function useZoomPan(
     return { scale: t.scale, translateX: tx, translateY: ty };
   };
 
-  // Reset to fitTransform whenever it changes
   useEffect(() => {
     if (!fitTransform) return;
     transformRef.current = fitTransform;
@@ -142,6 +139,7 @@ function useZoomPan(
   const lastMovePos = useRef({ x: 0, y: 0 });
   const cursorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragEndTime = useRef(0);
+  const pointerIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     const el = viewportRef.current;
@@ -185,7 +183,7 @@ function useZoomPan(
         x: transformRef.current.translateX,
         y: transformRef.current.translateY,
       };
-      el.setPointerCapture(e.pointerId);
+      pointerIdRef.current = e.pointerId;
     };
 
     const handlePointerMove = (e: PointerEvent) => {
@@ -196,6 +194,9 @@ function useZoomPan(
 
       if (!hasMoved.current && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
         hasMoved.current = true;
+        if (pointerIdRef.current !== null) {
+          el.setPointerCapture(pointerIdRef.current);
+        }
       }
 
       if (hasMoved.current) {
@@ -222,12 +223,13 @@ function useZoomPan(
 
     const handlePointerUp = (e: PointerEvent) => {
       if (isPointerDown.current) {
-        el.releasePointerCapture(e.pointerId);
         if (hasMoved.current) {
+          el.releasePointerCapture(e.pointerId);
           dragEndTime.current = Date.now();
         }
       }
       isPointerDown.current = false;
+      pointerIdRef.current = null;
       setCursorType("default");
     };
 
@@ -303,7 +305,6 @@ function TrackGrid({
     return () => ro.disconnect();
   }, []);
 
-  // Binary search for largest tile size that fits all tracks in viewport
   const gridParams = useMemo(() => {
     if (!containerSize || tracks.length === 0) return null;
     const { width: cw, height: ch } = containerSize;
@@ -344,7 +345,6 @@ function TrackGrid({
     return { columns, tileSize, gridWidth, gridHeight };
   }, [tracks.length, containerSize]);
 
-  // Compute the transform that fits and centers the grid in the viewport
   const fitTransform = useMemo<Transform | null>(() => {
     if (!gridParams || !containerSize) return null;
 
@@ -375,7 +375,8 @@ function TrackGrid({
   }, [cursorType, onCursorTypeChange]);
 
   const handleTileClick = useCallback(
-    (track: Track) => {
+    (e: React.MouseEvent, track: Track) => {
+      e.stopPropagation();
       if (wasRecentDrag()) return;
       onClick(track);
     },
@@ -389,7 +390,7 @@ function TrackGrid({
   const { columns, tileSize } = gridParams;
 
   return (
-    <div className="track-grid-container" ref={viewportRef}>
+    <div className="track-grid-container" ref={viewportRef} onClick={(e) => e.stopPropagation()}>
       <div
         className="track-grid-transform"
         style={{
@@ -420,7 +421,7 @@ function TrackGrid({
                 style={{ width: tileSize, height: tileSize }}
                 onPointerEnter={() => onHover(track)}
                 onPointerLeave={onHoverEnd}
-                onClick={() => handleTileClick(track)}
+                onClick={(e) => handleTileClick(e, track)}
               >
                 {artworkUrl && (
                   <img
@@ -461,6 +462,8 @@ export function GenreLines({
   const [expandedGenre, setExpandedGenre] = useState<string | null>(null);
   const [cursorType, setCursorType] = useState<CursorType>("default");
   const cursorRef = useRef<HTMLDivElement>(null);
+  const [hoveredGenre, setHoveredGenre] = useState<string | null>(null);
+  const [hoverPreviewTrack, setHoverPreviewTrack] = useState<Track | null>(null);
 
   const orderedGroups = useMemo<GenreGroup[]>(() => {
     if (tracks.length === 0) return [];
@@ -518,6 +521,23 @@ export function GenreLines({
     [],
   );
 
+  const handleGenrePointerEnter = useCallback(
+    (group: GenreGroup) => {
+      if (expandedGenre) return; // Don't preview when a genre is expanded
+      const randomTrack = group.tracks[Math.floor(Math.random() * group.tracks.length)];
+      setHoveredGenre(group.genre);
+      setHoverPreviewTrack(randomTrack);
+      onHoverRef.current(randomTrack);
+    },
+    [expandedGenre],
+  );
+
+  const handleGenrePointerLeave = useCallback(() => {
+    setHoveredGenre(null);
+    setHoverPreviewTrack(null);
+    onHoverEndRef.current();
+  }, []);
+
   if (orderedGroups.length === 0) {
     return (
       <>
@@ -534,25 +554,42 @@ export function GenreLines({
 
   return (
     <>
-      <div className="genre-lines">
+      <div className="genre-lines" onClick={() => setExpandedGenre(null)}>
         {orderedGroups.map((group) => {
           const isExpanded = expandedGenre === group.genre;
+          const isHovered = hoveredGenre === group.genre;
 
           return (
             <div
               key={group.genre}
               className={`genre-slot${isExpanded ? " genre-slot--expanded" : ""}`}
-              onClick={
-                isExpanded ? undefined : () => handleSlotClick(group.genre)
-              }
             >
-              <div
-                className="genre-line"
-                onClick={
-                  isExpanded ? () => handleSlotClick(group.genre) : undefined
-                }
-              />
-              <span className="genre-label">{group.displayLabel}</span>
+              {/* Hover preview tile */}
+              {isHovered && hoverPreviewTrack && !isExpanded && (
+                <div className="genre-preview-tile">
+                  <img
+                    src={getArtworkUrl(hoverPreviewTrack.artwork_url, "t67x67")}
+                    alt=""
+                    draggable={false}
+                  />
+                </div>
+              )}
+
+              {/* Vertical text (collapsed state) — clickable to expand */}
+              <span
+                className={`genre-text${isExpanded ? " genre-text--hidden" : ""}`}
+                onPointerEnter={() => handleGenrePointerEnter(group)}
+                onPointerLeave={handleGenrePointerLeave}
+                onClick={!isExpanded ? (e) => { e.stopPropagation(); handleSlotClick(group.genre); } : undefined}
+              >
+                {group.displayLabel}
+              </span>
+
+              {/* Horizontal text (expanded state) */}
+              <span className={`genre-text--horizontal${isExpanded ? " genre-text--horizontal-visible" : ""}`}>
+                {group.displayLabel}
+              </span>
+
               {isExpanded && (
                 <TrackGrid
                   key={expandedGenre}

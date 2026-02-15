@@ -1,6 +1,6 @@
 .genre-lines {
   position: absolute;
-  inset: 0;
+  inset: 0 0 69px 0;
   display: flex;
   flex-direction: row;
   padding: 0 40px;
@@ -12,39 +12,50 @@
 .genre-slot {
   flex: 1 1 0;
   display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
   align-items: center;
-  justify-content: center;
   height: 100%;
   position: relative;
   transition: flex 0.4s ease;
   min-width: 0;
+  padding-bottom: 20px;
 }
 
 .genre-slot--expanded {
   flex: 0 0 auto;
   width: 65vw;
   align-items: stretch;
+  justify-content: stretch;
+  padding-bottom: 0;
 }
 
-.genre-line {
-  width: 2px;
-  height: 160px;
-  background: #000000;
-  flex-shrink: 0;
-  transition:
-    height 0.4s ease,
-    width 0.15s ease;
+/* Vertical genre text (collapsed) */
+.genre-text {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-family: "Futura", "Trebuchet MS", Arial, sans-serif;
+  font-size: 24px;
+  font-weight: 500;
+  color: #000;
+  white-space: nowrap;
+  transition: opacity 0.3s ease;
+  cursor: none;
+  user-select: none;
+  pointer-events: auto;
 }
 
-.genre-slot:not(.genre-slot--expanded):hover .genre-line {
-  width: 3px;
+.genre-text--hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
-.genre-slot--expanded .genre-line {
-  height: 100%;
+.genre-slot:not(.genre-slot--expanded):hover .genre-text {
+  opacity: 0.6;
 }
 
-.genre-label {
+/* Horizontal genre text (expanded) */
+.genre-text--horizontal {
   position: absolute;
   top: 20px;
   left: 20px;
@@ -60,8 +71,23 @@
   z-index: 2;
 }
 
-.genre-slot--expanded .genre-label {
+.genre-text--horizontal-visible {
   opacity: 1;
+}
+
+/* Hover preview tile */
+.genre-preview-tile {
+  width: 20px;
+  height: 20px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.genre-preview-tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .track-grid-container {

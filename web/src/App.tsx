@@ -4,9 +4,7 @@ import { useAvailableYears } from './hooks/useAvailableYears';
 import { LoadingScreen } from './components/LoadingScreen';
 import { GenreLines } from './components/GenreLines';
 import { SoundCloudPlayer } from './components/SoundCloudPlayer';
-import { NowPlayingPill } from './components/NowPlayingPill';
-import { ProgressPill } from './components/ProgressPill';
-import { YearFilterPill } from './components/YearFilterPill';
+import { BottomBar } from './components/BottomBar';
 import type { Track, SoundCloudPlayerHandle } from './types';
 
 const PREVIEW_START_MS = 300000; // 5 minutes
@@ -170,32 +168,26 @@ function App() {
             onPause={handlePause}
           />
 
-          <SoundCloudPlayer ref={previewPlayerRef} />
-
-          <NowPlayingPill
-            activeTrack={activeTrack}
-            previewTrack={previewTrack}
+          <SoundCloudPlayer
+            ref={previewPlayerRef}
+            onProgress={handleProgress}
+            onPlay={handlePlay}
+            onPause={handlePause}
           />
 
-          {(activeTrack || previewTrack) && (
-            <ProgressPill
-              position={position}
-              duration={duration}
-              isPaused={isPaused}
-              onPlayPause={handlePlayPause}
-              onSeek={handleSeek}
-              isPreview={!!previewTrack}
-            />
-          )}
-
-          {years.length > 0 && (
-            <YearFilterPill
-              years={years}
-              selectedYear={selectedYear}
-              onYearChange={handleYearChange}
-              isLoading={loading || yearsLoading}
-            />
-          )}
+          <BottomBar
+            activeTrack={activeTrack}
+            previewTrack={previewTrack}
+            years={years}
+            selectedYear={selectedYear}
+            onYearChange={handleYearChange}
+            isLoading={loading || yearsLoading}
+            position={position}
+            duration={duration}
+            isPaused={isPaused}
+            onPlayPause={handlePlayPause}
+            onSeek={handleSeek}
+          />
         </>
       )}
     </>
