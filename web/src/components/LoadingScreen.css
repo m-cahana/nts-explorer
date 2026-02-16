@@ -24,12 +24,47 @@
 .loading-screen__title {
   font-family: var(--font-display);
   font-size: 24px;
-  font-weight: 300;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
-.loading-screen__status {
+.loading-screen__title-italic {
+  font-style: italic;
+}
+
+.loading-screen__bar {
+  width: 271px;
+  height: 34px;
+  border: 1px solid var(--color-black);
+  position: relative;
+  overflow: hidden;
+}
+
+.loading-screen__fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: var(--color-black);
+  transition: width 0.3s ease-out;
+}
+
+.loading-screen__fill--complete {
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+
+.loading-screen__cta {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-family: var(--font-display);
-  font-size: 16px;
-  color: var(--color-gray);
+  font-size: 20px;
+  opacity: 0;
+  transition: opacity 1s ease-in 0.3s;
+}
+
+.loading-screen__cta--visible {
+  opacity: 1;
 }

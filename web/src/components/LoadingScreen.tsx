@@ -8,9 +8,16 @@ interface LoadingScreenProps {
   onEnter: () => void;
 }
 
-export function LoadingScreen({ loading, progress, trackCount, onEnter }: LoadingScreenProps) {
+export function LoadingScreen({ loading, progress, onEnter }: LoadingScreenProps) {
   const [visible, setVisible] = useState(true);
   const [fading, setFading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      setLoaded(true);
+    }
+  }, [loading]);
 
   useEffect(() => {
     if (fading) {
@@ -20,7 +27,7 @@ export function LoadingScreen({ loading, progress, trackCount, onEnter }: Loadin
   }, [fading]);
 
   const handleClick = () => {
-    if (!loading) {
+    if (loaded) {
       setFading(true);
       onEnter();
     }
@@ -30,17 +37,21 @@ export function LoadingScreen({ loading, progress, trackCount, onEnter }: Loadin
 
   let className = 'loading-screen';
   if (fading) className += ' loading-screen--fading';
-  if (!loading) className += ' loading-screen--clickable';
+  if (loaded) className += ' loading-screen--clickable';
 
   return (
     <div className={className} onClick={handleClick}>
-      <div className="loading-screen__title">NTS Explorer</div>
-      <div className="loading-screen__status">
-        {loading
-          ? `Loading... ${progress}%`
-          : trackCount > 0
-            ? `${trackCount.toLocaleString()} tracks - Click to explore`
-            : 'No tracks found'}
+      <div className="loading-screen__title">
+        NTS <span className="loading-screen__title-italic">archives</span>
+      </div>
+      <div className="loading-screen__bar">
+        <div
+          className={`loading-screen__fill${loaded ? ' loading-screen__fill--complete' : ''}`}
+          style={{ width: `${progress}%` }}
+        />
+        <div className={`loading-screen__cta${loaded ? ' loading-screen__cta--visible' : ''}`}>
+          click to explore
+        </div>
       </div>
     </div>
   );
