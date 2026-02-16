@@ -644,6 +644,7 @@ export const GenreLines = forwardRef<GenreLinesHandle, GenreLinesProps>(function
     <>
       <div className="genre-lines">
         <div className="genre-sidebar-wrapper">
+          <span className="genre-sidebar__title">genre</span>
           <div className="genre-sidebar" ref={sidebarRef}>
             {orderedGroups.map((group) => {
               const isExpanded = expandedGenre === group.genre;

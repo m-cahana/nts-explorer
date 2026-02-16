@@ -13,7 +13,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 12px 0 60px;
+  padding: calc(50vh - 25px) 0 calc(50vh - 25px);
 }
 
 .mobile-genre-divider {
@@ -61,6 +61,10 @@
 .mobile-genre-divider--left .mobile-genre-divider__label {
   left: auto;
   right: 16px;
+}
+
+.mobile-genre-divider--first {
+  top: -10px;
 }
 
 .mobile-tile {

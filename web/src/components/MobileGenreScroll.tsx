@@ -142,8 +142,19 @@ export function MobileGenreScroll({
       }, 150);
     };
 
-    // Initial pass
-    requestAnimationFrame(updateCenterTile);
+    // Initial pass — scale and play the first centered tile
+    requestAnimationFrame(() => {
+      updateCenterTile();
+      const found = findClosestTile();
+      if (found) {
+        const trackId = Number(found.tile.dataset.trackId);
+        const track = trackMapRef.current.get(trackId);
+        if (track) {
+          centerTrackRef.current = track;
+          onClickRef.current(track);
+        }
+      }
+    });
 
     container.addEventListener('scroll', handleScroll, { passive: true });
 
@@ -254,7 +265,7 @@ function MobileGenreSection({
 }: MobileGenreSectionProps) {
   return (
     <>
-      <div className={`mobile-genre-divider ${index % 2 === 0 ? 'mobile-genre-divider--right' : 'mobile-genre-divider--left'}`}>
+      <div className={`mobile-genre-divider ${index % 2 === 0 ? 'mobile-genre-divider--left' : 'mobile-genre-divider--right'}${index === 0 ? ' mobile-genre-divider--first' : ''}`}>
         <span className="mobile-genre-divider__label">{genre}</span>
         <span className="mobile-genre-divider__line" />
       </div>
