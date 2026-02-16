@@ -41,6 +41,7 @@
   flex-direction: row;
   align-items: flex-start;
   gap: 4px;
+  position: relative;
 }
 
 .az-helper__expanded {
@@ -80,6 +81,8 @@
 }
 
 .az-helper__genre-list {
+  position: absolute;
+  left: calc(100% + 4px);
   border: 2px solid var(--color-black);
   background: var(--color-white);
   display: flex;

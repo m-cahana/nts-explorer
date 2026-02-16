@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import './AZScrollHelper.css';
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -63,15 +63,7 @@ export function AZScrollHelper({
       const genres = letterToGenres.get(letter);
       if (!genres) return;
 
-      if (genres.length === 1) {
-        // Single genre — scroll directly
-        onScrollToGenre(genres[0]);
-        setExpanded(false);
-        setActiveLetter(null);
-      } else {
-        // Multiple genres — show submenu
-        setActiveLetter((prev) => (prev === letter ? null : letter));
-      }
+      setActiveLetter((prev) => (prev === letter ? null : letter));
     },
     [letterToGenres, onScrollToGenre],
   );
@@ -85,6 +77,18 @@ export function AZScrollHelper({
     },
     [onScrollToGenre],
   );
+
+  const letterRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const [genreListTop, setGenreListTop] = useState(0);
+
+  // Update genre list position when active letter changes
+  useEffect(() => {
+    if (!activeLetter) return;
+    const btn = letterRefs.current.get(activeLetter);
+    if (btn) {
+      setGenreListTop(btn.offsetTop);
+    }
+  }, [activeLetter]);
 
   const progressTop = `calc(${scrollProgress * 100}% - ${scrollProgress * 2}px)`;
   const activeGenres = activeLetter ? letterToGenres.get(activeLetter) ?? [] : [];
@@ -103,6 +107,10 @@ export function AZScrollHelper({
               return (
                 <button
                   key={letter}
+                  ref={(el) => {
+                    if (el) letterRefs.current.set(letter, el);
+                    else letterRefs.current.delete(letter);
+                  }}
                   className={
                     `az-helper__letter-btn` +
                     (active ? '' : ' az-helper__letter-btn--dim') +
@@ -116,9 +124,10 @@ export function AZScrollHelper({
               );
             })}
           </div>
-          {activeLetter && activeGenres.length > 1 && (
+          {activeLetter && activeGenres.length > 0 && (
             <div
               className="az-helper__genre-list"
+              style={{ top: genreListTop }}
               onPointerDown={(e) => e.stopPropagation()}
             >
               {activeGenres.map((genre) => (
