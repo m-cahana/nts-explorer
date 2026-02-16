@@ -93,6 +93,14 @@ export function cosineSimilarity(a: Map<string, number>, b: Map<string, number>)
   return denom === 0 ? 0 : dot / denom;
 }
 
+/** Order genres alphabetically by name. "other"/"uncategorized" go last. */
+export function orderGenresAlphabetically(groups: GenreGroup[]): GenreGroup[] {
+  const special = groups.filter(g => g.genre === 'other' || g.genre === 'uncategorized');
+  const normal = groups.filter(g => g.genre !== 'other' && g.genre !== 'uncategorized');
+  normal.sort((a, b) => a.genre.localeCompare(b.genre));
+  return [...normal, ...special];
+}
+
 /** Order genres by similarity: start from largest, greedily pick most similar next. "other"/"uncategorized" go last. */
 export function orderGenresBySimilarity(groups: GenreGroup[]): GenreGroup[] {
   const special = groups.filter(g => g.genre === 'other' || g.genre === 'uncategorized');
@@ -133,7 +141,7 @@ export function orderGenresBySimilarity(groups: GenreGroup[]): GenreGroup[] {
 }
 
 /** Orchestrator: produces a flat ordered track list with genre group boundaries. */
-export function computeGridLayout(tracks: Track[]): GridLayout {
+export function computeGridLayout(tracks: Track[], alphabetical?: boolean): GridLayout {
   const freq = buildGenreFrequency(tracks);
   const groupMap = groupByPrimaryGenre(tracks, freq);
 
@@ -148,8 +156,10 @@ export function computeGridLayout(tracks: Track[]): GridLayout {
     });
   }
 
-  // Order by similarity
-  const orderedGroups = orderGenresBySimilarity(genreGroups);
+  // Order groups
+  const orderedGroups = alphabetical
+    ? orderGenresAlphabetically(genreGroups)
+    : orderGenresBySimilarity(genreGroups);
 
   // Build flat track list and group boundaries
   const flatTracks: Track[] = [];

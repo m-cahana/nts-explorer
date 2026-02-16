@@ -1,0 +1,110 @@
+.az-helper {
+  position: fixed;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 100;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.az-helper__label {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-black);
+  text-align: center;
+  margin-bottom: 2px;
+}
+
+.az-helper__progress-box {
+  width: 29px;
+  height: 44px;
+  border: 2px solid var(--color-black);
+  background: var(--color-white);
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.az-helper__progress-line {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  height: 2px;
+  background: var(--color-black);
+  transition: top 0.1s ease-out;
+}
+
+.az-helper__expanded-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.az-helper__expanded {
+  width: 30px;
+  border: 2px solid var(--color-black);
+  background: var(--color-white);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.az-helper__letter-btn {
+  display: block;
+  width: 100%;
+  padding: 1px 0;
+  border: none;
+  background: none;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-black);
+  text-align: center;
+  cursor: pointer;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.az-helper__letter-btn--dim {
+  color: var(--color-gray-light);
+  cursor: default;
+}
+
+.az-helper__letter-btn--active {
+  background: var(--color-black);
+  color: var(--color-white);
+}
+
+.az-helper__genre-list {
+  border: 2px solid var(--color-black);
+  background: var(--color-white);
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.az-helper__genre-btn {
+  display: block;
+  width: 100%;
+  padding: 4px 10px;
+  border: none;
+  background: none;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-black);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.az-helper__genre-btn:active {
+  background: var(--color-gray-light);
+}

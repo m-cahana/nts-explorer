@@ -1,6 +1,7 @@
 import { useMemo, useEffect, useRef, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { computeGridLayout } from '../lib/genreLayout';
+import { AZScrollHelper } from './AZScrollHelper';
 import type { Track } from '../types';
 import './MobileGenreScroll.css';
 
@@ -30,6 +31,7 @@ export function MobileGenreScroll({
   const centerTrackRef = useRef<Track | null>(null);
   const isScrollingRef = useRef(false);
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const genreDividerRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Stable callback refs
   const onHoverRef = useRef(onHover);
@@ -41,8 +43,25 @@ export function MobileGenreScroll({
 
   const orderedGroups = useMemo(() => {
     if (tracks.length === 0) return [];
-    return computeGridLayout(tracks).orderedGroups;
+    return computeGridLayout(tracks, true).orderedGroups;
   }, [tracks]);
+
+  // Map first letter → all genre keys starting with that letter
+  const letterToGenres = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const group of orderedGroups) {
+      const letter = group.genre[0]?.toUpperCase();
+      if (!letter) continue;
+      if (!map.has(letter)) map.set(letter, []);
+      map.get(letter)!.push(group.genre);
+    }
+    return map;
+  }, [orderedGroups]);
+
+  const activeLetters = useMemo(
+    () => new Set(letterToGenres.keys()),
+    [letterToGenres],
+  );
 
   // Build track lookup map
   useEffect(() => {
@@ -172,6 +191,14 @@ export function MobileGenreScroll({
     }
   }, []);
 
+  const setDividerRef = useCallback((el: HTMLDivElement | null, genreKey: string) => {
+    if (el) {
+      genreDividerRefs.current.set(genreKey, el);
+    } else {
+      genreDividerRefs.current.delete(genreKey);
+    }
+  }, []);
+
   // Click a tile → scroll it to center (which triggers play on settle)
   const handleTileClick = useCallback((trackId: number) => {
     const container = containerRef.current;
@@ -205,25 +232,54 @@ export function MobileGenreScroll({
     });
   }, []);
 
+  const handleScrollToGenre = useCallback((genreKey: string) => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const divider = genreDividerRefs.current.get(genreKey);
+    if (!divider) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const centerY = containerRect.top + containerRect.height / 2;
+    const dividerRect = divider.getBoundingClientRect();
+    const offset = dividerRect.top - centerY + 40; // offset slightly below divider
+
+    gsap.to(container, {
+      scrollTop: container.scrollTop + offset,
+      duration: 0.4,
+      ease: 'power2.out',
+    });
+  }, []);
+
   if (orderedGroups.length === 0) {
     return <div className="mobile-scroll" />;
   }
 
   return (
-    <div className="mobile-scroll" ref={containerRef}>
-      <div className="mobile-scroll__inner">
-        {orderedGroups.map((group, index) => (
-          <MobileGenreSection
-            key={group.genre}
-            genre={group.displayLabel}
-            tracks={group.tracks}
-            index={index}
-            setTileRef={setTileRef}
-            onTileClick={handleTileClick}
-          />
-        ))}
+    <>
+      <div className="mobile-scroll" ref={containerRef}>
+        <div className="mobile-scroll__inner">
+          {orderedGroups.map((group, index) => (
+            <MobileGenreSection
+              key={group.genre}
+              genreKey={group.genre}
+              genre={group.displayLabel}
+              tracks={group.tracks}
+              index={index}
+              setTileRef={setTileRef}
+              setDividerRef={setDividerRef}
+              onTileClick={handleTileClick}
+            />
+          ))}
+        </div>
       </div>
-    </div>
+      <AZScrollHelper
+        activeLetters={activeLetters}
+        letterToGenres={letterToGenres}
+        containerRef={containerRef}
+        onScrollToGenre={handleScrollToGenre}
+      />
+    </>
   );
 }
 
@@ -249,23 +305,30 @@ function findClosestTileFromContainer(
 }
 
 interface MobileGenreSectionProps {
+  genreKey: string;
   genre: string;
   tracks: Track[];
   index: number;
   setTileRef: (el: HTMLDivElement | null, trackId: number) => void;
+  setDividerRef: (el: HTMLDivElement | null, genreKey: string) => void;
   onTileClick: (trackId: number) => void;
 }
 
 function MobileGenreSection({
+  genreKey,
   genre,
   tracks,
   index,
   setTileRef,
+  setDividerRef,
   onTileClick,
 }: MobileGenreSectionProps) {
   return (
     <>
-      <div className={`mobile-genre-divider ${index % 2 === 0 ? 'mobile-genre-divider--left' : 'mobile-genre-divider--right'}${index === 0 ? ' mobile-genre-divider--first' : ''}`}>
+      <div
+        className={`mobile-genre-divider ${index % 2 === 0 ? 'mobile-genre-divider--left' : 'mobile-genre-divider--right'}${index === 0 ? ' mobile-genre-divider--first' : ''}`}
+        ref={(el) => setDividerRef(el, genreKey)}
+      >
         <span className="mobile-genre-divider__label">{genre}</span>
         <span className="mobile-genre-divider__line" />
       </div>
