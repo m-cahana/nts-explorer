@@ -3,7 +3,7 @@
   inset: 0 0 69px 0;
   display: flex;
   flex-direction: row;
-  background: #ffffff;
+  background: var(--color-white);
   overflow: hidden;
   cursor: none;
 }
@@ -45,7 +45,7 @@
   position: absolute;
   right: 0;
   width: 6px;
-  background: #000;
+  background: var(--color-black);
   pointer-events: auto;
   cursor: default;
 }
@@ -77,10 +77,10 @@
 
 /* Genre text (horizontal in sidebar) */
 .genre-text {
-  font-family: "Futura", "Trebuchet MS", Arial, sans-serif;
+  font-family: var(--font-display);
   font-size: 18px;
   font-weight: 500;
-  color: #000;
+  color: var(--color-black);
   white-space: nowrap;
   transition: opacity 0.3s ease;
   cursor: none;
@@ -112,10 +112,10 @@
   position: absolute;
   top: 20px;
   left: 20px;
-  font-family: "Futura", "Trebuchet MS", Arial, sans-serif;
+  font-family: var(--font-display);
   font-size: 24px;
   font-weight: bold;
-  color: #ffffff;
+  color: var(--color-white);
   white-space: nowrap;
   pointer-events: none;
   z-index: 2;
@@ -144,7 +144,7 @@
 
 .track-tile {
   aspect-ratio: 1 / 1;
-  background: #cccccc;
+  background: var(--color-gray-mid);
   position: relative;
 }
 

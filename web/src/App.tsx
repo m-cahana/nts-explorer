@@ -4,6 +4,7 @@ import { useAvailableYears } from './hooks/useAvailableYears';
 import { useIsMobile } from './hooks/useIsMobile';
 import { LoadingScreen } from './components/LoadingScreen';
 import { GenreLines } from './components/GenreLines';
+import type { GenreLinesHandle } from './components/GenreLines';
 import { MobileTopBar } from './components/MobileTopBar';
 import { MobileGenreScroll } from './components/MobileGenreScroll';
 import { SoundCloudPlayer } from './components/SoundCloudPlayer';
@@ -30,6 +31,7 @@ function App() {
   // Player refs
   const mainPlayerRef = useRef<SoundCloudPlayerHandle>(null);
   const previewPlayerRef = useRef<SoundCloudPlayerHandle>(null);
+  const genreLinesRef = useRef<GenreLinesHandle>(null);
 
   // Ref to track activeTrack without causing callback recreation
   const activeTrackRef = useRef(activeTrack);
@@ -114,6 +116,12 @@ function App() {
     }
   }, []);
 
+  const handleArtworkClick = useCallback((track: Track) => {
+    if (genreLinesRef.current) {
+      genreLinesRef.current.expandGenreForTrack(track);
+    }
+  }, []);
+
   const handleYearChange = useCallback((year: number) => {
     // Stop audio playback
     if (mainPlayerRef.current) {
@@ -175,9 +183,9 @@ function App() {
             </>
           ) : (
             <GenreLines
+              ref={genreLinesRef}
               tracks={tracks}
               activeTrack={activeTrack}
-              previewTrack={previewTrack}
               onHover={handleHover}
               onHoverEnd={handleHoverEnd}
               onClick={handleClick}
@@ -210,6 +218,7 @@ function App() {
             isPaused={isPaused}
             onPlayPause={handlePlayPause}
             onSeek={handleSeek}
+            onArtworkClick={handleArtworkClick}
           />
         </>
       )}

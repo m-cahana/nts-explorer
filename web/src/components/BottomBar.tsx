@@ -2,6 +2,13 @@ import { useRef, useState, useCallback } from 'react';
 import type { Track } from '../types';
 import './BottomBar.css';
 
+function getArtworkUrl(url: string | null, size = 't67x67'): string {
+  if (!url) return '';
+  return url
+    .replace(/-large\./, `-${size}.`)
+    .replace(/-t\d+x\d+\./, `-${size}.`);
+}
+
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
   const hours = Math.floor(totalSeconds / 3600);
@@ -26,6 +33,7 @@ interface BottomBarProps {
   isPaused: boolean;
   onPlayPause: () => void;
   onSeek: (positionMs: number) => void;
+  onArtworkClick?: (track: Track) => void;
 }
 
 export function BottomBar({
@@ -40,6 +48,7 @@ export function BottomBar({
   isPaused,
   onPlayPause,
   onSeek,
+  onArtworkClick,
 }: BottomBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -78,10 +87,22 @@ export function BottomBar({
       <div className="bottom-bar__left">
         {track && (
           <>
-            <span className="bottom-bar__label">
-              {previewTrack ? 'Previewing' : 'Now Playing'}
-            </span>
-            <span className="bottom-bar__title">{track.title}</span>
+            <div className="bottom-bar__left-text">
+              <span className="bottom-bar__label">
+                {previewTrack ? 'Previewing' : 'Now Playing'}
+              </span>
+              <span className="bottom-bar__title">{track.title}</span>
+            </div>
+            {track.artwork_url && (
+              <img
+                className="bottom-bar__artwork"
+                src={getArtworkUrl(track.artwork_url)}
+                alt=""
+                draggable={false}
+                onClick={() => onArtworkClick?.(track)}
+                style={{ cursor: onArtworkClick ? 'pointer' : undefined }}
+              />
+            )}
           </>
         )}
       </div>

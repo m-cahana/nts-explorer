@@ -4,8 +4,8 @@
   left: 0;
   right: 0;
   height: 69px;
-  background: #ffffff;
-  border-top: 2px solid #000000;
+  background: var(--color-white);
+  border-top: 2px solid var(--color-black);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -16,31 +16,39 @@
 /* Left section: Now Playing */
 .bottom-bar__left {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
   width: 280px;
   flex: 0 0 280px;
   min-width: 0;
 }
 
+.bottom-bar__left-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  flex: 1;
+}
+
+.bottom-bar__artwork {
+  width: 45px;
+  height: 45px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
 .bottom-bar__label {
-  font-family:
-    "Inter",
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
+  font-family: var(--font-body);
   font-size: 14px;
   font-weight: 700;
-  color: #f30000;
+  color: var(--color-red);
   line-height: 1.2;
 }
 
 .bottom-bar__title {
-  font-family:
-    "Inter",
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
+  font-family: var(--font-body);
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
@@ -59,10 +67,10 @@
 }
 
 .bottom-bar__year {
-  font-family: "Futura", "Trebuchet MS", Arial, sans-serif;
+  font-family: var(--font-display);
   font-size: 16px;
   font-weight: 500;
-  color: #000;
+  color: var(--color-black);
   background: none;
   border: none;
   padding: 0;
@@ -82,8 +90,8 @@
 .bottom-bar__spinner {
   width: 14px;
   height: 14px;
-  border: 2px solid #e0e0e0;
-  border-top-color: #000;
+  border: 2px solid var(--color-gray-light);
+  border-top-color: var(--color-black);
   border-radius: 50%;
   animation: bottom-bar-spin 0.8s linear infinite;
 }
@@ -122,14 +130,14 @@
 .bottom-bar__progress-bar {
   width: 238px;
   height: 2px;
-  background: #e0e0e0;
+  background: var(--color-gray-light);
   cursor: pointer;
   position: relative;
 }
 
 .bottom-bar__progress-fill {
   height: 100%;
-  background: #000;
+  background: var(--color-black);
 }
 
 .bottom-bar__progress-dot {
@@ -138,7 +146,7 @@
   transform: translate(-50%, -50%);
   width: 8px;
   height: 8px;
-  background: #000;
+  background: var(--color-black);
   border-radius: 50%;
   transition:
     width 0.1s,
@@ -151,13 +159,9 @@
 }
 
 .bottom-bar__time {
-  font-family:
-    "Inter",
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
+  font-family: var(--font-body);
   font-size: 12px;
-  color: #666;
+  color: var(--color-gray);
   min-width: 45px;
 }
 
@@ -165,7 +169,7 @@
   .bottom-bar {
     height: 50px;
     padding: 0 16px;
-    border-top: 1px solid #000;
+    border-top: 1px solid var(--color-black);
   }
   .bottom-bar__left,
   .bottom-bar__center {

@@ -201,11 +201,12 @@ export function MobileGenreScroll({
   return (
     <div className="mobile-scroll" ref={containerRef}>
       <div className="mobile-scroll__inner">
-        {orderedGroups.map((group) => (
+        {orderedGroups.map((group, index) => (
           <MobileGenreSection
             key={group.genre}
             genre={group.displayLabel}
             tracks={group.tracks}
+            index={index}
             setTileRef={setTileRef}
             onTileClick={handleTileClick}
           />
@@ -239,6 +240,7 @@ function findClosestTileFromContainer(
 interface MobileGenreSectionProps {
   genre: string;
   tracks: Track[];
+  index: number;
   setTileRef: (el: HTMLDivElement | null, trackId: number) => void;
   onTileClick: (trackId: number) => void;
 }
@@ -246,13 +248,16 @@ interface MobileGenreSectionProps {
 function MobileGenreSection({
   genre,
   tracks,
+  index,
   setTileRef,
   onTileClick,
 }: MobileGenreSectionProps) {
   return (
     <>
-      <div className="mobile-genre-label">{genre}</div>
-      <hr className="mobile-genre-divider" />
+      <div className={`mobile-genre-divider ${index % 2 === 0 ? 'mobile-genre-divider--right' : 'mobile-genre-divider--left'}`}>
+        <span className="mobile-genre-divider__label">{genre}</span>
+        <span className="mobile-genre-divider__line" />
+      </div>
       {tracks.map((track) => {
         const artworkUrl = getArtworkUrl(track.artwork_url);
 

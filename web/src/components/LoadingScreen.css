@@ -1,0 +1,35 @@
+.loading-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--color-white);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  transition: opacity 0.5s ease-out;
+}
+
+.loading-screen--fading {
+  opacity: 0;
+}
+
+.loading-screen--clickable {
+  cursor: pointer;
+}
+
+.loading-screen__title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 300;
+  margin-bottom: 20px;
+}
+
+.loading-screen__status {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--color-gray);
+}

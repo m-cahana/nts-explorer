@@ -1,8 +1,13 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { createPortal } from "react-dom";
 import { computeGridLayout } from "../lib/genreLayout";
+import { buildGenreFrequency, assignPrimaryGenre } from "../lib/genreLayout";
 import type { Track, GenreGroup } from "../types";
 import "./GenreLines.css";
+
+export interface GenreLinesHandle {
+  expandGenreForTrack: (track: Track) => void;
+}
 
 type CursorType =
   | "default"
@@ -301,9 +306,6 @@ function useZoomPan(
 interface TrackGridProps {
   tracks: Track[];
   activeTrack: Track | null;
-  previewTrack: Track | null;
-  onHover: (track: Track) => void;
-  onHoverEnd: () => void;
   onClick: (track: Track) => void;
   onCursorTypeChange: (type: CursorType) => void;
 }
@@ -311,12 +313,10 @@ interface TrackGridProps {
 function TrackGrid({
   tracks,
   activeTrack,
-  previewTrack,
-  onHover,
-  onHoverEnd,
   onClick,
   onCursorTypeChange,
 }: TrackGridProps) {
+  const [hoveredTrackId, setHoveredTrackId] = useState<number | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState<{
     width: number;
@@ -449,9 +449,9 @@ function TrackGrid({
         >
           {tracks.map((track) => {
             const isActive = activeTrack?.id === track.id;
-            const isPreview = previewTrack?.id === track.id;
+            const isHovered = hoveredTrackId === track.id;
             let className = "track-tile";
-            if (isPreview) className += " track-tile--preview";
+            if (isHovered) className += " track-tile--preview";
             else if (isActive) className += " track-tile--active";
 
             const artworkUrl = getArtworkUrl(track.artwork_url);
@@ -461,8 +461,8 @@ function TrackGrid({
                 key={track.id}
                 className={className}
                 style={{ width: tileSize, height: tileSize }}
-                onPointerEnter={() => onHover(track)}
-                onPointerLeave={onHoverEnd}
+                onPointerEnter={() => setHoveredTrackId(track.id)}
+                onPointerLeave={() => setHoveredTrackId(null)}
                 onClick={(e) => handleTileClick(e, track)}
               >
                 {artworkUrl && (
@@ -487,20 +487,18 @@ function TrackGrid({
 interface GenreLinesProps {
   tracks: Track[];
   activeTrack: Track | null;
-  previewTrack: Track | null;
   onHover: (track: Track) => void;
   onHoverEnd: () => void;
   onClick: (track: Track) => void;
 }
 
-export function GenreLines({
+export const GenreLines = forwardRef<GenreLinesHandle, GenreLinesProps>(function GenreLines({
   tracks,
   activeTrack,
-  previewTrack,
   onHover,
   onHoverEnd,
   onClick,
-}: GenreLinesProps) {
+}, ref) {
   const [expandedGenre, setExpandedGenre] = useState<string | null>(null);
   const [cursorType, setCursorType] = useState<CursorType>("default");
   const cursorRef = useRef<HTMLDivElement>(null);
@@ -519,6 +517,20 @@ export function GenreLines({
     const layout = computeGridLayout(tracks);
     return layout.orderedGroups;
   }, [tracks]);
+
+  const genreFreq = useMemo(() => buildGenreFrequency(tracks), [tracks]);
+
+  useImperativeHandle(ref, () => ({
+    expandGenreForTrack: (track: Track) => {
+      const primary = assignPrimaryGenre(track, genreFreq);
+      // Find matching group (could be in "other" if it was merged)
+      const group = orderedGroups.find((g) => g.genre === primary)
+        || orderedGroups.find((g) => g.tracks.some((t) => t.id === track.id));
+      if (group) {
+        setExpandedGenre(group.genre);
+      }
+    },
+  }), [genreFreq, orderedGroups]);
 
   // Custom scrollbar tracking
   useEffect(() => {
@@ -548,10 +560,21 @@ export function GenreLines({
     };
   }, [orderedGroups]);
 
-  // Reset expanded genre when tracks change (e.g. year filter)
+  // Auto-expand first genre and trigger preview when tracks change
   useEffect(() => {
-    setExpandedGenre(null);
-  }, [tracks]);
+    if (orderedGroups.length > 0) {
+      const group = orderedGroups[0];
+      setExpandedGenre(group.genre);
+      const randomTrack = group.tracks[Math.floor(Math.random() * group.tracks.length)];
+      setHoveredGenre(group.genre);
+      setHoverPreviewTrack(randomTrack);
+      // Delay to let SoundCloud widget initialize on first load
+      const timer = setTimeout(() => onHover(randomTrack), 1500);
+      return () => clearTimeout(timer);
+    } else {
+      setExpandedGenre(null);
+    }
+  }, [orderedGroups]);
 
   // Reset cursor when genre collapses
   useEffect(() => {
@@ -578,14 +601,6 @@ export function GenreLines({
   onHoverRef.current = onHover;
   onHoverEndRef.current = onHoverEnd;
   onClickRef.current = onClick;
-
-  const handleHover = useCallback((track: Track) => {
-    onHoverRef.current(track);
-  }, []);
-
-  const handleHoverEnd = useCallback(() => {
-    onHoverEndRef.current();
-  }, []);
 
   const handleClick = useCallback((track: Track) => {
     onClickRef.current(track);
@@ -680,9 +695,6 @@ export function GenreLines({
                 key={expandedGenre}
                 tracks={expandedGroup.tracks}
                 activeTrack={activeTrack}
-                previewTrack={previewTrack}
-                onHover={handleHover}
-                onHoverEnd={handleHoverEnd}
                 onClick={handleClick}
                 onCursorTypeChange={setCursorType}
               />
@@ -698,4 +710,4 @@ export function GenreLines({
       )}
     </>
   );
-}
+});

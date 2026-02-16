@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import './LoadingScreen.css';
 
 interface LoadingScreenProps {
   loading: boolean;
@@ -27,30 +28,14 @@ export function LoadingScreen({ loading, progress, trackCount, onEnter }: Loadin
 
   if (!visible) return null;
 
+  let className = 'loading-screen';
+  if (fading) className += ' loading-screen--fading';
+  if (!loading) className += ' loading-screen--clickable';
+
   return (
-    <div
-      onClick={handleClick}
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: '#ffffff',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: loading ? 'default' : 'pointer',
-        zIndex: 1000,
-        transition: 'opacity 0.5s ease-out',
-        opacity: fading ? 0 : 1,
-      }}
-    >
-      <div style={{ fontSize: '24px', fontWeight: 300, marginBottom: '20px' }}>
-        NTS Explorer
-      </div>
-      <div style={{ fontSize: '16px', color: '#666' }}>
+    <div className={className} onClick={handleClick}>
+      <div className="loading-screen__title">NTS Explorer</div>
+      <div className="loading-screen__status">
         {loading
           ? `Loading... ${progress}%`
           : trackCount > 0
