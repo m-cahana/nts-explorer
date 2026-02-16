@@ -10,6 +10,7 @@ import { MobileGenreScroll } from './components/MobileGenreScroll';
 import { SoundCloudPlayer } from './components/SoundCloudPlayer';
 import { BottomBar } from './components/BottomBar';
 import type { Track, SoundCloudPlayerHandle } from './types';
+import { Analytics } from '@vercel/analytics/react';
 
 const PREVIEW_START_MS = 300000; // 5 minutes
 const DEFAULT_YEAR = 2025;
@@ -222,6 +223,7 @@ function App() {
           />
         </>
       )}
+      <Analytics />
     </>
   );
 }
