@@ -20,3 +20,8 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+
+# AI tool local config
+.agents/
+.claude/
+.cursor/
