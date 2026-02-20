@@ -450,12 +450,10 @@ function TrackGrid({
           }}
         >
           {tracks.map((track) => {
-            const isActive = activeTrack?.id === track.id;
+            const isPlaying = activeTrack?.id === track.id || previewTrack?.id === track.id;
             const isHovered = hoveredTrackId === track.id;
-            const isPreview = previewTrack?.id === track.id;
             let className = "track-tile";
-            if (isHovered || isPreview) className += " track-tile--preview";
-            else if (isActive) className += " track-tile--active";
+            if (isHovered || isPlaying) className += " track-tile--preview";
 
             const artworkUrl = getArtworkUrl(track.artwork_url);
 
@@ -490,6 +488,7 @@ function TrackGrid({
 interface GenreLinesProps {
   tracks: Track[];
   activeTrack: Track | null;
+  previewTrack: Track | null;
   onHover: (track: Track) => void;
   onHoverEnd: () => void;
   onClick: (track: Track) => void;
@@ -498,6 +497,7 @@ interface GenreLinesProps {
 export const GenreLines = forwardRef<GenreLinesHandle, GenreLinesProps>(function GenreLines({
   tracks,
   activeTrack,
+  previewTrack,
   onHover,
   onHoverEnd,
   onClick,
@@ -699,7 +699,7 @@ export const GenreLines = forwardRef<GenreLinesHandle, GenreLinesProps>(function
                 key={expandedGenre}
                 tracks={expandedGroup.tracks}
                 activeTrack={activeTrack}
-                previewTrack={hoverPreviewTrack}
+                previewTrack={previewTrack}
                 onClick={handleClick}
                 onCursorTypeChange={setCursorType}
               />

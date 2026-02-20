@@ -166,7 +166,6 @@
   object-fit: cover;
 }
 
-.track-tile--active,
 .track-tile--preview {
   transform: scale(2);
   transform-origin: center;

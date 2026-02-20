@@ -91,7 +91,18 @@ export function BottomBar({
               <span className="bottom-bar__label">
                 {previewTrack ? 'Previewing' : 'Now Playing'}
               </span>
-              <span className="bottom-bar__title">{track.title}</span>
+              {track.nts_url ? (
+                <a
+                  className="bottom-bar__title bottom-bar__title--link"
+                  href={track.nts_url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {track.title}
+                </a>
+              ) : (
+                <span className="bottom-bar__title">{track.title}</span>
+              )}
             </div>
             {track.artwork_url && (
               <img

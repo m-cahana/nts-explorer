@@ -195,6 +195,7 @@ function App() {
               ref={genreLinesRef}
               tracks={tracks}
               activeTrack={activeTrack}
+              previewTrack={previewTrack}
               onHover={handleHover}
               onHoverEnd={handleHoverEnd}
               onClick={handleClick}
