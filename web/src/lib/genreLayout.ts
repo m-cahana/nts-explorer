@@ -47,10 +47,10 @@ export function groupByPrimaryGenre(
     groups.get(genre)!.push(track);
   }
 
-  // Merge small groups into "other"
+  // Merge small groups and uncategorized into "other"
   const result = new Map<string, Track[]>();
   for (const [genre, groupTracks] of groups) {
-    if (groupTracks.length >= minGroupSize) {
+    if (genre !== 'uncategorized' && groupTracks.length >= minGroupSize) {
       result.set(genre, groupTracks);
     } else {
       if (!result.has('other')) result.set('other', []);
