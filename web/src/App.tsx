@@ -1,19 +1,19 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { useTracks } from './hooks/useTracks';
-import { useAvailableYears } from './hooks/useAvailableYears';
-import { useIsMobile } from './hooks/useIsMobile';
-import { LoadingScreen } from './components/LoadingScreen';
-import { GenreLines } from './components/GenreLines';
-import type { GenreLinesHandle } from './components/GenreLines';
-import { MobileTopBar } from './components/MobileTopBar';
-import { MobileGenreScroll } from './components/MobileGenreScroll';
-import { SoundCloudPlayer } from './components/SoundCloudPlayer';
-import { BottomBar } from './components/BottomBar';
-import type { Track, SoundCloudPlayerHandle } from './types';
-import { Analytics } from '@vercel/analytics/react';
+import { useState, useRef, useCallback, useEffect } from "react";
+import { useTracks } from "./hooks/useTracks";
+import { useAvailableYears } from "./hooks/useAvailableYears";
+import { useIsMobile } from "./hooks/useIsMobile";
+import { LoadingScreen } from "./components/LoadingScreen";
+import { GenreLines } from "./components/GenreLines";
+import type { GenreLinesHandle } from "./components/GenreLines";
+import { MobileTopBar } from "./components/MobileTopBar";
+import { MobileGenreScroll } from "./components/MobileGenreScroll";
+import { SoundCloudPlayer } from "./components/SoundCloudPlayer";
+import { BottomBar } from "./components/BottomBar";
+import type { Track, SoundCloudPlayerHandle } from "./types";
+import { Analytics } from "@vercel/analytics/react";
 
 const PREVIEW_START_MS = 300000; // 5 minutes
-const DEFAULT_YEAR = 2025;
+const DEFAULT_YEAR = 2026;
 
 function App() {
   const isMobile = useIsMobile();
@@ -86,7 +86,7 @@ function App() {
   }, []);
 
   const handleClick = useCallback((track: Track) => {
-    console.log('[App] handleClick called for track:', track.id, track.title);
+    console.log("[App] handleClick called for track:", track.id, track.title);
 
     // Stop preview if any
     if (previewPlayerRef.current) {
@@ -102,14 +102,22 @@ function App() {
   }, []);
 
   const handlePlayPause = useCallback(() => {
+    if (previewTrack) {
+      if (!previewPlayerRef.current) return;
+      if (isPaused) {
+        previewPlayerRef.current.play();
+      } else {
+        previewPlayerRef.current.pause();
+      }
+      return;
+    }
     if (!mainPlayerRef.current) return;
-
     if (isPaused) {
       mainPlayerRef.current.play();
     } else {
       mainPlayerRef.current.pause();
     }
-  }, [isPaused]);
+  }, [isPaused, previewTrack]);
 
   const handleSeek = useCallback((positionMs: number) => {
     if (mainPlayerRef.current) {
@@ -142,13 +150,15 @@ function App() {
 
   if (error) {
     return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100vh',
-        color: '#666'
-      }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100vh",
+          color: "#666",
+        }}
+      >
         Error: {error}
       </div>
     );
@@ -177,8 +187,6 @@ function App() {
               />
               <MobileGenreScroll
                 tracks={tracks}
-                onHover={handleHover}
-                onHoverEnd={handleHoverEnd}
                 onClick={handleClick}
               />
             </>

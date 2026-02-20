@@ -14,15 +14,11 @@ function getArtworkUrl(url: string | null, size = 't500x500'): string {
 
 interface MobileGenreScrollProps {
   tracks: Track[];
-  onHover: (track: Track) => void;
-  onHoverEnd: () => void;
   onClick: (track: Track) => void;
 }
 
 export function MobileGenreScroll({
   tracks,
-  onHover,
-  onHoverEnd,
   onClick,
 }: MobileGenreScrollProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -34,11 +30,7 @@ export function MobileGenreScroll({
   const genreDividerRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Stable callback refs
-  const onHoverRef = useRef(onHover);
-  const onHoverEndRef = useRef(onHoverEnd);
   const onClickRef = useRef(onClick);
-  onHoverRef.current = onHover;
-  onHoverEndRef.current = onHoverEnd;
   onClickRef.current = onClick;
 
   const orderedGroups = useMemo(() => {
@@ -111,12 +103,6 @@ export function MobileGenreScroll({
           found.tile.style.transform = `scale(${CENTER_SCALE})`;
         }
         currentCenterId = newCenterId;
-
-        // Preview while scrolling
-        if (isScrollingRef.current && newCenterId !== null) {
-          const track = trackMapRef.current.get(newCenterId);
-          if (track) onHoverRef.current(track);
-        }
       }
     };
 
@@ -147,10 +133,7 @@ export function MobileGenreScroll({
     };
 
     const handleScroll = () => {
-      if (!isScrollingRef.current) {
-        isScrollingRef.current = true;
-        onHoverEndRef.current();
-      }
+      isScrollingRef.current = true;
 
       updateCenterTile();
 

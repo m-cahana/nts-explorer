@@ -306,6 +306,7 @@ function useZoomPan(
 interface TrackGridProps {
   tracks: Track[];
   activeTrack: Track | null;
+  previewTrack: Track | null;
   onClick: (track: Track) => void;
   onCursorTypeChange: (type: CursorType) => void;
 }
@@ -313,6 +314,7 @@ interface TrackGridProps {
 function TrackGrid({
   tracks,
   activeTrack,
+  previewTrack,
   onClick,
   onCursorTypeChange,
 }: TrackGridProps) {
@@ -450,8 +452,9 @@ function TrackGrid({
           {tracks.map((track) => {
             const isActive = activeTrack?.id === track.id;
             const isHovered = hoveredTrackId === track.id;
+            const isPreview = previewTrack?.id === track.id;
             let className = "track-tile";
-            if (isHovered) className += " track-tile--preview";
+            if (isHovered || isPreview) className += " track-tile--preview";
             else if (isActive) className += " track-tile--active";
 
             const artworkUrl = getArtworkUrl(track.artwork_url);
@@ -696,6 +699,7 @@ export const GenreLines = forwardRef<GenreLinesHandle, GenreLinesProps>(function
                 key={expandedGenre}
                 tracks={expandedGroup.tracks}
                 activeTrack={activeTrack}
+                previewTrack={hoverPreviewTrack}
                 onClick={handleClick}
                 onCursorTypeChange={setCursorType}
               />
