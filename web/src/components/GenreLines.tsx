@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import { computeGridLayout } from "../lib/genreLayout";
 import { buildGenreFrequency, assignPrimaryGenre } from "../lib/genreLayout";
 import type { Track, GenreGroup } from "../types";
-import { SavesSidebar } from "./SavesSidebar";
 import "./GenreLines.css";
 
 export interface GenreLinesHandle {
@@ -124,7 +123,6 @@ interface Transform {
 interface ZoomPanResult extends Transform {
   cursorType: CursorType;
   wasRecentDrag: () => boolean;
-  resetDrag: () => void;
 }
 
 function useZoomPan(
@@ -300,12 +298,7 @@ function useZoomPan(
     [],
   );
 
-  const resetDrag = useCallback(() => {
-    isPointerDown.current = false;
-    hasMoved.current = false;
-  }, []);
-
-  return { ...transform, cursorType, wasRecentDrag, resetDrag };
+  return { ...transform, cursorType, wasRecentDrag };
 }
 
 // --- TrackGrid sub-component ---
@@ -316,9 +309,6 @@ interface TrackGridProps {
   previewTrack: Track | null;
   onClick: (track: Track) => void;
   onCursorTypeChange: (type: CursorType) => void;
-  savedTracks: Track[];
-  onSaveTrack: (track: Track) => void;
-  onUnsaveTrack: (track: Track) => void;
 }
 
 function TrackGrid({
@@ -327,12 +317,8 @@ function TrackGrid({
   previewTrack,
   onClick,
   onCursorTypeChange,
-  savedTracks,
-  onSaveTrack,
-  onUnsaveTrack,
 }: TrackGridProps) {
   const [hoveredTrackId, setHoveredTrackId] = useState<number | null>(null);
-  const [doubleclickedTrackId, setDoubleclickedTrackId] = useState<number | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState<{
     width: number;
@@ -421,19 +407,12 @@ function TrackGrid({
     return { width: gridParams.gridWidth, height: gridParams.gridHeight };
   }, [gridParams]);
 
-  const { scale, translateX, translateY, cursorType, wasRecentDrag, resetDrag } =
+  const { scale, translateX, translateY, cursorType, wasRecentDrag } =
     useZoomPan(viewportRef, fitTransform, contentSize);
 
   useEffect(() => {
     onCursorTypeChange(cursorType);
   }, [cursorType, onCursorTypeChange]);
-
-  // Auto-clear double-click overlay after 2s
-  useEffect(() => {
-    if (doubleclickedTrackId === null) return;
-    const timer = setTimeout(() => setDoubleclickedTrackId(null), 2000);
-    return () => clearTimeout(timer);
-  }, [doubleclickedTrackId]);
 
   const handleTileClick = useCallback(
     (e: React.MouseEvent, track: Track) => {
@@ -455,7 +434,6 @@ function TrackGrid({
       className="track-grid-container"
       ref={viewportRef}
       onClick={(e) => e.stopPropagation()}
-      onPointerDown={() => setDoubleclickedTrackId(null)}
     >
       <div
         className="track-grid-transform"
@@ -475,7 +453,6 @@ function TrackGrid({
             const isActive = activeTrack?.id === track.id;
             const isHovered = hoveredTrackId === track.id;
             const isPreview = previewTrack?.id === track.id;
-            const isSaved = savedTracks.some(t => t.id === track.id);
             let className = "track-tile";
             if (isHovered || isPreview) className += " track-tile--preview";
             else if (isActive) className += " track-tile--active";
@@ -487,15 +464,6 @@ function TrackGrid({
                 key={track.id}
                 className={className}
                 style={{ width: tileSize, height: tileSize }}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData('application/nts-track', JSON.stringify(track));
-                  resetDrag();
-                }}
-                onDoubleClick={(e) => {
-                  e.stopPropagation();
-                  setDoubleclickedTrackId(track.id);
-                }}
                 onPointerEnter={() => setHoveredTrackId(track.id)}
                 onPointerLeave={() => setHoveredTrackId(null)}
                 onClick={(e) => handleTileClick(e, track)}
@@ -507,18 +475,6 @@ function TrackGrid({
                     loading="lazy"
                     draggable={false}
                   />
-                )}
-                {doubleclickedTrackId === track.id && (
-                  <div
-                    className="track-tile-save-overlay"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      isSaved ? onUnsaveTrack(track) : onSaveTrack(track);
-                      setDoubleclickedTrackId(null);
-                    }}
-                  >
-                    {isSaved ? 'unsave' : 'save'}
-                  </div>
                 )}
               </div>
             );
@@ -537,9 +493,6 @@ interface GenreLinesProps {
   onHover: (track: Track) => void;
   onHoverEnd: () => void;
   onClick: (track: Track) => void;
-  savedTracks: Track[];
-  onSaveTrack: (track: Track) => void;
-  onUnsaveTrack: (track: Track) => void;
 }
 
 export const GenreLines = forwardRef<GenreLinesHandle, GenreLinesProps>(function GenreLines({
@@ -548,9 +501,6 @@ export const GenreLines = forwardRef<GenreLinesHandle, GenreLinesProps>(function
   onHover,
   onHoverEnd,
   onClick,
-  savedTracks,
-  onSaveTrack,
-  onUnsaveTrack,
 }, ref) {
   const [expandedGenre, setExpandedGenre] = useState<string | null>(null);
   const [cursorType, setCursorType] = useState<CursorType>("default");
@@ -752,19 +702,10 @@ export const GenreLines = forwardRef<GenreLinesHandle, GenreLinesProps>(function
                 previewTrack={hoverPreviewTrack}
                 onClick={handleClick}
                 onCursorTypeChange={setCursorType}
-                savedTracks={savedTracks}
-                onSaveTrack={onSaveTrack}
-                onUnsaveTrack={onUnsaveTrack}
               />
             </>
           )}
         </div>
-        <SavesSidebar
-          savedTracks={savedTracks}
-          onPlay={handleClick}
-          onRemove={onUnsaveTrack}
-          onDrop={onSaveTrack}
-        />
       </div>
       {createPortal(
         <div ref={cursorRef} className="custom-cursor">

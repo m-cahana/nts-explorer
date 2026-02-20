@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import type { Track } from '../types';
 import './BottomBar.css';
 
@@ -34,9 +34,6 @@ interface BottomBarProps {
   onPlayPause: () => void;
   onSeek: (positionMs: number) => void;
   onArtworkClick?: (track: Track) => void;
-  savedTracks?: Track[];
-  onSaveTrack?: (track: Track) => void;
-  onUnsaveTrack?: (track: Track) => void;
 }
 
 export function BottomBar({
@@ -52,25 +49,12 @@ export function BottomBar({
   onPlayPause,
   onSeek,
   onArtworkClick,
-  savedTracks = [],
-  onSaveTrack,
-  onUnsaveTrack,
 }: BottomBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [showSaveOverlay, setShowSaveOverlay] = useState(false);
-  const lastArtworkClickTime = useRef(0);
 
   const track = previewTrack || activeTrack;
-  const isSaved = track ? savedTracks.some(t => t.id === track.id) : false;
   const progress = duration > 0 ? (position / duration) * 100 : 0;
-
-  // Auto-clear save overlay after 2s
-  useEffect(() => {
-    if (!showSaveOverlay) return;
-    const timer = setTimeout(() => setShowSaveOverlay(false), 2000);
-    return () => clearTimeout(timer);
-  }, [showSaveOverlay]);
 
   const seekFromEvent = useCallback((clientX: number) => {
     if (!barRef.current || !duration) return;
@@ -110,38 +94,14 @@ export function BottomBar({
               <span className="bottom-bar__title">{track.title}</span>
             </div>
             {track.artwork_url && (
-              <div className="bottom-bar__artwork-wrapper">
-                <img
-                  className="bottom-bar__artwork"
-                  src={getArtworkUrl(track.artwork_url)}
-                  alt=""
-                  draggable={false}
-                  style={{ cursor: 'pointer' }}
-                  onClick={(e) => {
-                    const now = Date.now();
-                    const sinceLastClick = now - lastArtworkClickTime.current;
-                    lastArtworkClickTime.current = now;
-                    if (sinceLastClick < 300) {
-                      e.stopPropagation();
-                      setShowSaveOverlay(true);
-                    } else {
-                      onArtworkClick?.(track);
-                    }
-                  }}
-                />
-                {showSaveOverlay && (
-                  <div
-                    className="track-tile-save-overlay"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      isSaved ? onUnsaveTrack?.(track) : onSaveTrack?.(track);
-                      setShowSaveOverlay(false);
-                    }}
-                  >
-                    {isSaved ? 'unsave' : 'save'}
-                  </div>
-                )}
-              </div>
+              <img
+                className="bottom-bar__artwork"
+                src={getArtworkUrl(track.artwork_url)}
+                alt=""
+                draggable={false}
+                onClick={() => onArtworkClick?.(track)}
+                style={{ cursor: onArtworkClick ? 'pointer' : undefined }}
+              />
             )}
           </>
         )}
