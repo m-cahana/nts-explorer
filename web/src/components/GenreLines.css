@@ -173,6 +173,22 @@
   z-index: 1;
 }
 
+.track-tile-save-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--color-white);
+  cursor: pointer;
+  z-index: 2;
+  user-select: none;
+}
+
 .custom-cursor {
   position: fixed;
   pointer-events: none;

@@ -22,6 +22,31 @@ function App() {
   const { tracks, loading, progress, error } = useTracks(selectedYear);
   const [hasEntered, setHasEntered] = useState(false);
 
+  // Saved tracks state (persisted to localStorage)
+  const [savedTracks, setSavedTracks] = useState<Track[]>(() => {
+    try {
+      const raw = localStorage.getItem('nts-saved-tracks');
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
+
+  const saveTrack = useCallback((track: Track) => {
+    setSavedTracks(prev => {
+      if (prev.some(t => t.id === track.id)) return prev;
+      const next = [...prev, track];
+      localStorage.setItem('nts-saved-tracks', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const unsaveTrack = useCallback((track: Track) => {
+    setSavedTracks(prev => {
+      const next = prev.filter(t => t.id !== track.id);
+      localStorage.setItem('nts-saved-tracks', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   // Audio state
   const [activeTrack, setActiveTrack] = useState<Track | null>(null);
   const [previewTrack, setPreviewTrack] = useState<Track | null>(null);
@@ -198,6 +223,9 @@ function App() {
               onHover={handleHover}
               onHoverEnd={handleHoverEnd}
               onClick={handleClick}
+              savedTracks={savedTracks}
+              onSaveTrack={saveTrack}
+              onUnsaveTrack={unsaveTrack}
             />
           )}
 
@@ -228,6 +256,9 @@ function App() {
             onPlayPause={handlePlayPause}
             onSeek={handleSeek}
             onArtworkClick={handleArtworkClick}
+            savedTracks={savedTracks}
+            onSaveTrack={saveTrack}
+            onUnsaveTrack={unsaveTrack}
           />
         </>
       )}
