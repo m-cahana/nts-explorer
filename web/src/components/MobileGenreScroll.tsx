@@ -119,12 +119,14 @@ export function MobileGenreScroll({
         ease: 'power2.out',
         onUpdate: updateCenterTile,
         onComplete: () => {
-          // Full play on the settled center tile
+          updateCenterTile();
           const settled = findClosestTile();
           if (!settled) return;
           const trackId = Number(settled.tile.dataset.trackId);
           const track = trackMapRef.current.get(trackId);
-          if (track) {
+          // Only fire if the settled track is different from the one already playing.
+          // This prevents restarting a track that was just started by a tap.
+          if (track && track.id !== centerTrackRef.current?.id) {
             centerTrackRef.current = track;
             onClickRef.current(track);
           }
@@ -144,7 +146,9 @@ export function MobileGenreScroll({
       }, 150);
     };
 
-    // Initial pass — scale and play the first centered tile
+    // Initial pass — scale and attempt to play the first centered tile.
+    // On real iOS Safari this will be blocked (no gesture) — user must tap.
+    // On desktop / DevTools mobile simulation it works normally.
     requestAnimationFrame(() => {
       updateCenterTile();
       const found = findClosestTile();
@@ -182,12 +186,20 @@ export function MobileGenreScroll({
     }
   }, []);
 
-  // Click a tile → scroll it to center (which triggers play on settle)
+  // Click a tile → call play synchronously (iOS gesture chain), then animate scroll
   const handleTileClick = useCallback((trackId: number) => {
     const container = containerRef.current;
     const tile = tileRefs.current.get(trackId);
     if (!container || !tile) return;
 
+    // MUST call synchronously here to preserve iOS gesture chain
+    const track = trackMapRef.current.get(trackId);
+    if (track) {
+      centerTrackRef.current = track;
+      onClickRef.current(track);
+    }
+
+    // Animate scroll for visual effect only
     const containerRect = container.getBoundingClientRect();
     const centerY = containerRect.top + containerRect.height / 2;
     const tileRect = tile.getBoundingClientRect();
@@ -198,18 +210,12 @@ export function MobileGenreScroll({
       duration: 0.3,
       ease: 'power2.out',
       onUpdate: () => {
-        // Update center tile scale during scroll
         const found = findClosestTileFromContainer(container, tileRefs.current);
         if (found) {
           tileRefs.current.forEach((t, id) => {
-            t.style.transform = id === Number(found.tile.dataset.trackId) ? 'scale(1.3)' : 'scale(1)';
+            t.style.transform =
+              id === Number(found.tile.dataset.trackId) ? 'scale(1.3)' : 'scale(1)';
           });
-        }
-      },
-      onComplete: () => {
-        const track = trackMapRef.current.get(trackId);
-        if (track) {
-          onClickRef.current(track);
         }
       },
     });

@@ -39,6 +39,7 @@ function App() {
   useEffect(() => {
     activeTrackRef.current = activeTrack;
   }, [activeTrack]);
+
   const savedPositionRef = useRef(0);
 
   const handleEnter = useCallback(() => {
@@ -119,6 +120,9 @@ function App() {
     }
   }, [isPaused, previewTrack]);
 
+  const handlePlayPauseRef = useRef(handlePlayPause);
+  useEffect(() => { handlePlayPauseRef.current = handlePlayPause; }, [handlePlayPause]);
+
   const handleSeek = useCallback((positionMs: number) => {
     if (mainPlayerRef.current) {
       mainPlayerRef.current.seekTo(positionMs);
@@ -130,6 +134,63 @@ function App() {
       genreLinesRef.current.expandGenreForTrack(track);
     }
   }, []);
+
+  // Media Session API — metadata
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !activeTrack) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: activeTrack.title,
+      artist: 'NTS Radio',
+      album: activeTrack.nts_show_alias ?? undefined,
+      artwork: activeTrack.artwork_url
+        ? [
+            { src: activeTrack.artwork_url.replace(/-large\./, '-t300x300.').replace(/-t\d+x\d+\./, '-t300x300.'), sizes: '300x300', type: 'image/jpeg' },
+            { src: activeTrack.artwork_url.replace(/-large\./, '-t500x500.').replace(/-t\d+x\d+\./, '-t500x500.'), sizes: '500x500', type: 'image/jpeg' },
+          ]
+        : [],
+    });
+  }, [activeTrack]);
+
+  // Media Session API — playback state
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.playbackState = isPaused ? 'paused' : 'playing';
+  }, [isPaused]);
+
+  // Media Session API — position state
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || duration <= 0) return;
+    navigator.mediaSession.setPositionState({
+      duration: duration / 1000,
+      playbackRate: 1,
+      position: position / 1000,
+    });
+  }, [position, duration]);
+
+  // Media Session API — action handlers (register once)
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.setActionHandler('play', () => handlePlayPauseRef.current());
+    navigator.mediaSession.setActionHandler('pause', () => handlePlayPauseRef.current());
+    navigator.mediaSession.setActionHandler('seekforward', (details) => {
+      const skip = (details.seekOffset ?? 15) * 1000;
+      mainPlayerRef.current?.seekTo(Math.max(0, mainPlayerRef.current.getPosition() + skip));
+    });
+    navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+      const skip = (details.seekOffset ?? 15) * 1000;
+      mainPlayerRef.current?.seekTo(Math.max(0, mainPlayerRef.current.getPosition() - skip));
+    });
+    navigator.mediaSession.setActionHandler('seekto', (details) => {
+      if (details.seekTime !== undefined) {
+        mainPlayerRef.current?.seekTo(details.seekTime * 1000);
+      }
+    });
+    return () => {
+      (['play', 'pause', 'seekforward', 'seekbackward', 'seekto'] as MediaSessionAction[]).forEach(
+        (action) => navigator.mediaSession.setActionHandler(action, null),
+      );
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleYearChange = useCallback((year: number) => {
     // Stop audio playback

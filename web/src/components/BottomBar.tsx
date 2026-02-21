@@ -63,6 +63,26 @@ export function BottomBar({
     onSeek(Math.max(0, Math.min(duration, percent * duration)));
   }, [duration, onSeek]);
 
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    e.preventDefault(); // prevent scroll while scrubbing the fixed bar
+    setIsDragging(true);
+    seekFromEvent(e.touches[0].clientX);
+
+    const handleTouchMove = (moveEvent: TouchEvent) => {
+      if (moveEvent.touches.length > 0) {
+        seekFromEvent(moveEvent.touches[0].clientX);
+      }
+    };
+    const handleTouchEnd = () => {
+      setIsDragging(false);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
+  }, [seekFromEvent]);
+
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     setIsDragging(true);
     seekFromEvent(e.clientX);
@@ -154,6 +174,7 @@ export function BottomBar({
           ref={barRef}
           className="bottom-bar__progress-bar"
           onMouseDown={handleMouseDown}
+          onTouchStart={handleTouchStart}
         >
           <div
             className="bottom-bar__progress-fill"

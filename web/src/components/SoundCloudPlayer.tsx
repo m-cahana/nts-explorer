@@ -42,6 +42,7 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, SoundCloudPla
     const widgetRef = useRef<SCWidget | null>(null);
     const positionRef = useRef(0);
     const pendingSeekRef = useRef<number | null>(null);
+    const pendingLoadRef = useRef<{ url: string; startPosition?: number } | null>(null);
 
     useEffect(() => {
       // Load SoundCloud Widget API if not already loaded
@@ -59,6 +60,24 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, SoundCloudPla
       widgetRef.current = window.SC.Widget(iframeRef.current);
 
       widgetRef.current.bind(window.SC.Widget.Events.READY, () => {
+        // If a loadTrack call arrived before the widget was ready, apply it now
+        if (pendingLoadRef.current && widgetRef.current) {
+          const { url, startPosition } = pendingLoadRef.current;
+          pendingLoadRef.current = null;
+          if (startPosition !== undefined) pendingSeekRef.current = startPosition;
+          widgetRef.current.load(url, {
+            auto_play: true,
+            callback: () => {
+              if (pendingSeekRef.current !== null && widgetRef.current) {
+                setTimeout(() => {
+                  widgetRef.current?.seekTo(pendingSeekRef.current!);
+                  pendingSeekRef.current = null;
+                }, 100);
+              }
+            },
+          });
+          return;
+        }
         if (pendingSeekRef.current !== null && widgetRef.current) {
           widgetRef.current.seekTo(pendingSeekRef.current);
           pendingSeekRef.current = null;
@@ -101,22 +120,25 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, SoundCloudPla
 
     useImperativeHandle(ref, () => ({
       loadTrack: (url: string, startPosition?: number) => {
-        if (widgetRef.current) {
-          if (startPosition !== undefined) {
-            pendingSeekRef.current = startPosition;
-          }
-          widgetRef.current.load(url, {
-            auto_play: true,
-            callback: () => {
-              if (pendingSeekRef.current !== null && widgetRef.current) {
-                setTimeout(() => {
-                  widgetRef.current?.seekTo(pendingSeekRef.current!);
-                  pendingSeekRef.current = null;
-                }, 100);
-              }
-            },
-          });
+        if (!widgetRef.current) {
+          // Widget not initialised yet — defer until READY fires
+          pendingLoadRef.current = { url, startPosition };
+          return;
         }
+        if (startPosition !== undefined) {
+          pendingSeekRef.current = startPosition;
+        }
+        widgetRef.current.load(url, {
+          auto_play: true,
+          callback: () => {
+            if (pendingSeekRef.current !== null && widgetRef.current) {
+              setTimeout(() => {
+                widgetRef.current?.seekTo(pendingSeekRef.current!);
+                pendingSeekRef.current = null;
+              }, 100);
+            }
+          },
+        });
       },
       play: () => {
         widgetRef.current?.play();
@@ -134,7 +156,16 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, SoundCloudPla
       <iframe
         ref={iframeRef}
         src="https://w.soundcloud.com/player/?url=https://soundcloud.com"
-        style={{ display: 'none' }}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: 1,
+          height: 1,
+          opacity: 0,
+          pointerEvents: 'none',
+          border: 'none',
+        }}
         allow="autoplay"
       />
     );
