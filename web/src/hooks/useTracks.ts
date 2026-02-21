@@ -14,12 +14,17 @@ export function useTracks(year?: number) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setLoading(true);
+    setTracks([]);
+    setProgress(0);
+
+    // Simulate smooth progress: ease toward 90%, never reaching it on its own
+    const interval = setInterval(() => {
+      setProgress((prev) => prev + (90 - prev) * 0.06);
+    }, 80);
+
     async function fetchTracks() {
       try {
-        setLoading(true);
-        setTracks([]);
-        setProgress(10);
-
         const allTracks: Track[] = [];
         let from = 0;
         let hasMore = true;
@@ -47,17 +52,15 @@ export function useTracks(year?: number) {
           if (data && data.length > 0) {
             allTracks.push(...data);
             from += PAGE_SIZE;
-            // Update progress based on pages fetched
-            setProgress(Math.min(10 + Math.floor(allTracks.length / 100), 80));
           }
 
           hasMore = data !== null && data.length === PAGE_SIZE;
         }
 
-        setProgress(80);
-
         if (allTracks.length === 0) {
           console.log("[useTracks] No tracks found");
+          clearInterval(interval);
+          setProgress(100);
           setLoading(false);
           return;
         }
@@ -72,17 +75,21 @@ export function useTracks(year?: number) {
 
         console.log("[useTracks] Loaded tracks:", finalTracks.length);
 
+        clearInterval(interval);
         setProgress(100);
         setTracks(finalTracks);
         setLoading(false);
       } catch (err) {
         console.error("[useTracks] Error:", err);
         setError(err instanceof Error ? err.message : "Failed to fetch tracks");
+        clearInterval(interval);
         setLoading(false);
       }
     }
 
     fetchTracks();
+
+    return () => clearInterval(interval);
   }, [year]);
 
   return { tracks, loading, progress, error };

@@ -50,7 +50,7 @@
 
 .loading-screen__fill--complete {
   opacity: 0;
-  transition: opacity 0.4s ease-out;
+  transition: opacity 1s ease-out;
 }
 
 .loading-screen__cta {
