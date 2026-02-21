@@ -142,11 +142,6 @@
   padding-top: 56px;
 }
 
-.track-grid-transform {
-  transform-origin: 0 0;
-  will-change: transform;
-}
-
 .track-grid {
   display: grid;
   column-gap: 6px;

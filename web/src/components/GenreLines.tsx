@@ -129,6 +129,7 @@ function useZoomPan(
   viewportRef: React.RefObject<HTMLDivElement | null>,
   fitTransform: Transform | null,
   contentSize: { width: number; height: number } | null,
+  viewportSize: { width: number; height: number } | null,
 ): ZoomPanResult {
   const [transform, setTransform] = useState<Transform>({
     scale: 1,
@@ -142,15 +143,16 @@ function useZoomPan(
   fitTransformRef.current = fitTransform;
   const contentSizeRef = useRef(contentSize);
   contentSizeRef.current = contentSize;
+  const viewportSizeRef = useRef(viewportSize);
+  viewportSizeRef.current = viewportSize;
 
   const clamp = (t: Transform): Transform => {
-    const el = viewportRef.current;
     const cs = contentSizeRef.current;
-    if (!el || !cs) return t;
+    const vs = viewportSizeRef.current;
+    if (!cs || !vs) return t;
 
-    const rect = el.getBoundingClientRect();
-    const vw = rect.width;
-    const vh = rect.height;
+    const vw = vs.width;
+    const vh = vs.height;
     const rw = cs.width * t.scale;
     const rh = cs.height * t.scale;
 
@@ -200,15 +202,19 @@ function useZoomPan(
       const factor = e.deltaY > 0 ? 0.95 : 1.05;
       const newScale = Math.min(15.0, Math.max(minScale, scale * factor));
 
-      const rect = el.getBoundingClientRect();
-      const cx = e.clientX - rect.left;
-      const cy = e.clientY - rect.top;
-
-      const next = clamp({
-        scale: newScale,
-        translateX: cx - (cx - translateX) * (newScale / scale),
-        translateY: cy - (cy - translateY) * (newScale / scale),
-      });
+      let next: Transform;
+      if (newScale <= minScale && fitTransformRef.current) {
+        next = fitTransformRef.current;
+      } else {
+        const rect = el.getBoundingClientRect();
+        const cx = e.clientX - rect.left;
+        const cy = e.clientY - rect.top;
+        next = clamp({
+          scale: newScale,
+          translateX: cx - (cx - translateX) * (newScale / scale),
+          translateY: cy - (cy - translateY) * (newScale / scale),
+        });
+      }
       transformRef.current = next;
       setTransform(next);
 
@@ -408,7 +414,7 @@ function TrackGrid({
   }, [gridParams]);
 
   const { scale, translateX, translateY, cursorType, wasRecentDrag } =
-    useZoomPan(viewportRef, fitTransform, contentSize);
+    useZoomPan(viewportRef, fitTransform, contentSize, containerSize);
 
   useEffect(() => {
     onCursorTypeChange(cursorType);
@@ -438,7 +444,7 @@ function TrackGrid({
       <div
         className="track-grid-transform"
         style={{
-          transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
+          transform: `translate(${translateX}px, ${translateY}px)`,
         }}
       >
         <div
@@ -447,6 +453,7 @@ function TrackGrid({
             gridTemplateColumns: `repeat(${columns}, ${tileSize}px)`,
             gridAutoRows: `${tileSize}px`,
             padding: `${GRID_PAD}px`,
+            zoom: scale,
           }}
         >
           {tracks.map((track) => {
