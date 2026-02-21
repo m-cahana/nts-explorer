@@ -454,6 +454,7 @@ function TrackGrid({
             const isHovered = hoveredTrackId === track.id;
             let className = "track-tile";
             if (isHovered || isPlaying) className += " track-tile--preview";
+            if (isHovered) className += " track-tile--hovered";
 
             const artworkUrl = getArtworkUrl(track.artwork_url);
 

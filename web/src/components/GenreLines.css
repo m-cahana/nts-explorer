@@ -169,7 +169,12 @@
 .track-tile--preview {
   transform: scale(2);
   transform-origin: center;
+  position: relative;
   z-index: 1;
+}
+
+.track-tile--hovered {
+  z-index: 2;
 }
 
 .custom-cursor {
