@@ -33,6 +33,8 @@ export function MobileGenreScroll({
   const onClickRef = useRef(onClick);
   onClickRef.current = onClick;
 
+  const audioUnlockedRef = useRef(false);
+
   const orderedGroups = useMemo(() => {
     if (tracks.length === 0) return [];
     return computeGridLayout(tracks, true).orderedGroups;
@@ -191,6 +193,17 @@ export function MobileGenreScroll({
     const container = containerRef.current;
     const tile = tileRefs.current.get(trackId);
     if (!container || !tile) return;
+
+    // One-time iOS audio context unlock — must happen synchronously within user gesture.
+    // Marks the parent document as "user-activated for audio" so that subsequent
+    // postMessage-triggered plays in the cross-origin SC iframe are honoured.
+    if (!audioUnlockedRef.current) {
+      audioUnlockedRef.current = true;
+      const sil = new Audio();
+      sil.src =
+        'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+      sil.play().catch(() => {});
+    }
 
     // MUST call synchronously here to preserve iOS gesture chain
     const track = trackMapRef.current.get(trackId);

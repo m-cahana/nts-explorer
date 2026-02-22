@@ -1,4 +1,5 @@
-import { forwardRef, useImperativeHandle, useRef, useCallback, useEffect } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useCallback, useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
 import type { SoundCloudPlayerHandle } from '../types';
 
 declare global {
@@ -36,16 +37,29 @@ interface SoundCloudPlayerProps {
   onFinish?: () => void;
 }
 
+function buildWidgetUrl(trackUrl: string, autoPlay: boolean): string {
+  return (
+    `https://w.soundcloud.com/player/?url=${encodeURIComponent(trackUrl)}` +
+    `&auto_play=${autoPlay}&buying=false&liking=false&download=false` +
+    `&sharing=false&show_artwork=false&show_comments=false` +
+    `&show_playcount=false&show_user=false&hide_related=true`
+  );
+}
+
 export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, SoundCloudPlayerProps>(
   ({ onProgress, onPlay, onPause, onFinish }, ref) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const widgetRef = useRef<SCWidget | null>(null);
     const positionRef = useRef(0);
     const pendingSeekRef = useRef<number | null>(null);
-    const pendingLoadRef = useRef<{ url: string; startPosition?: number } | null>(null);
+    const currentTrackUrlRef = useRef<string | null>(null);
+    const playRequestedRef = useRef(false);
+    const [iframeKey, setIframeKey] = useState(0);
+    const [iframeSrc, setIframeSrc] = useState(
+      'https://w.soundcloud.com/player/?url=https://soundcloud.com'
+    );
 
     useEffect(() => {
-      // Load SoundCloud Widget API if not already loaded
       if (!window.SC) {
         const script = document.createElement('script');
         script.src = 'https://w.soundcloud.com/player/api.js';
@@ -60,31 +74,23 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, SoundCloudPla
       widgetRef.current = window.SC.Widget(iframeRef.current);
 
       widgetRef.current.bind(window.SC.Widget.Events.READY, () => {
-        // If a loadTrack call arrived before the widget was ready, apply it now
-        if (pendingLoadRef.current && widgetRef.current) {
-          const { url, startPosition } = pendingLoadRef.current;
-          pendingLoadRef.current = null;
-          if (startPosition !== undefined) pendingSeekRef.current = startPosition;
-          widgetRef.current.load(url, {
-            auto_play: true,
-            callback: () => {
-              if (pendingSeekRef.current !== null && widgetRef.current) {
-                setTimeout(() => {
-                  widgetRef.current?.seekTo(pendingSeekRef.current!);
-                  pendingSeekRef.current = null;
-                }, 100);
-              }
-            },
-          });
-          return;
+        const seek = pendingSeekRef.current;
+        pendingSeekRef.current = null;
+        if (seek !== null && seek > 0 && widgetRef.current) {
+          setTimeout(() => {
+            widgetRef.current?.seekTo(seek);
+          }, 100);
         }
-        if (pendingSeekRef.current !== null && widgetRef.current) {
-          widgetRef.current.seekTo(pendingSeekRef.current);
-          pendingSeekRef.current = null;
+        if (playRequestedRef.current && widgetRef.current) {
+          // iOS: explicitly issue play after READY in case auto_play is ignored.
+          setTimeout(() => {
+            widgetRef.current?.play();
+          }, 0);
         }
       });
 
       widgetRef.current.bind(window.SC.Widget.Events.PLAY, () => {
+        playRequestedRef.current = false;
         onPlay?.();
       });
 
@@ -107,6 +113,7 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, SoundCloudPla
       });
     }, [onProgress, onPlay, onPause, onFinish]);
 
+    // Initial setup: poll until window.SC is available, then init widget
     useEffect(() => {
       const checkReady = setInterval(() => {
         if (window.SC && iframeRef.current) {
@@ -114,36 +121,61 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, SoundCloudPla
           clearInterval(checkReady);
         }
       }, 100);
-
       return () => clearInterval(checkReady);
+    }, [initWidget]);
+
+    // Re-init widget after each iframe src change (new track load)
+    const handleIframeLoad = useCallback(() => {
+      if (window.SC && iframeRef.current) {
+        initWidget();
+      }
     }, [initWidget]);
 
     useImperativeHandle(ref, () => ({
       loadTrack: (url: string, startPosition?: number) => {
-        if (!widgetRef.current) {
-          // Widget not initialised yet — defer until READY fires
-          pendingLoadRef.current = { url, startPosition };
-          return;
-        }
-        if (startPosition !== undefined) {
-          pendingSeekRef.current = startPosition;
-        }
-        widgetRef.current.load(url, {
-          auto_play: true,
-          callback: () => {
-            if (pendingSeekRef.current !== null && widgetRef.current) {
-              setTimeout(() => {
-                widgetRef.current?.seekTo(pendingSeekRef.current!);
-                pendingSeekRef.current = null;
-              }, 100);
-            }
-          },
+        pendingSeekRef.current =
+          startPosition !== undefined && startPosition > 0 ? startPosition : null;
+        currentTrackUrlRef.current = url;
+        playRequestedRef.current = true;
+
+        // flushSync forces React to apply the state updates and update the DOM
+        // synchronously, within the current user gesture — required for iOS autoplay.
+        // The new iframe element guarantees a SC.Widget cache miss, so events work.
+        flushSync(() => {
+          setIframeSrc(buildWidgetUrl(url, true));
+          setIframeKey((k) => k + 1);
         });
+        widgetRef.current = null;
       },
       play: () => {
+        const isIOS =
+          /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+          (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
+
+        playRequestedRef.current = true;
+
+        // First try direct widget.play() inside the tap gesture.
         widgetRef.current?.play();
+
+        // iOS fallback: if playback still did not start, hard-reload iframe with auto_play.
+        if (isIOS && currentTrackUrlRef.current) {
+          const startPos = positionRef.current;
+          window.setTimeout(() => {
+            if (!playRequestedRef.current || !widgetRef.current) return;
+            widgetRef.current.getPosition((pos) => {
+              if (!playRequestedRef.current || pos > 0) return;
+              pendingSeekRef.current = startPos > 0 ? startPos : null;
+              flushSync(() => {
+                setIframeSrc(buildWidgetUrl(currentTrackUrlRef.current!, true));
+                setIframeKey((k) => k + 1);
+              });
+              widgetRef.current = null;
+            });
+          }, 350);
+        }
       },
       pause: () => {
+        playRequestedRef.current = false;
         widgetRef.current?.pause();
       },
       seekTo: (positionMs: number) => {
@@ -154,8 +186,10 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, SoundCloudPla
 
     return (
       <iframe
+        key={iframeKey}
         ref={iframeRef}
-        src="https://w.soundcloud.com/player/?url=https://soundcloud.com"
+        src={iframeSrc}
+        onLoad={handleIframeLoad}
         style={{
           position: 'fixed',
           top: 0,

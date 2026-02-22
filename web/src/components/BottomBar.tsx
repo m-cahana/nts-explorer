@@ -1,9 +1,9 @@
-import { useRef, useState, useCallback } from 'react';
-import type { Track } from '../types';
-import './BottomBar.css';
+import { useRef, useState, useCallback } from "react";
+import type { Track } from "../types";
+import "./BottomBar.css";
 
-function getArtworkUrl(url: string | null, size = 't67x67'): string {
-  if (!url) return '';
+function getArtworkUrl(url: string | null, size = "t67x67"): string {
+  if (!url) return "";
   return url
     .replace(/-large\./, `-${size}.`)
     .replace(/-t\d+x\d+\./, `-${size}.`);
@@ -16,9 +16,9 @@ function formatTime(ms: number): string {
   const seconds = totalSeconds % 60;
 
   if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    return `${hours}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
   }
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
 interface BottomBarProps {
@@ -56,50 +56,87 @@ export function BottomBar({
   const track = previewTrack || activeTrack;
   const progress = duration > 0 ? (position / duration) * 100 : 0;
 
-  const seekFromEvent = useCallback((clientX: number) => {
-    if (!barRef.current || !duration) return;
-    const rect = barRef.current.getBoundingClientRect();
-    const percent = (clientX - rect.left) / rect.width;
-    onSeek(Math.max(0, Math.min(duration, percent * duration)));
-  }, [duration, onSeek]);
+  const seekFromEvent = useCallback(
+    (clientX: number) => {
+      if (!barRef.current || !duration) return;
+      const rect = barRef.current.getBoundingClientRect();
+      const percent = (clientX - rect.left) / rect.width;
+      onSeek(Math.max(0, Math.min(duration, percent * duration)));
+    },
+    [duration, onSeek],
+  );
 
-  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    e.preventDefault(); // prevent scroll while scrubbing the fixed bar
-    setIsDragging(true);
-    seekFromEvent(e.touches[0].clientX);
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!duration) return;
+      e.preventDefault();
+      setIsDragging(true);
+      seekFromEvent(e.clientX);
 
-    const handleTouchMove = (moveEvent: TouchEvent) => {
-      if (moveEvent.touches.length > 0) {
-        seekFromEvent(moveEvent.touches[0].clientX);
-      }
-    };
-    const handleTouchEnd = () => {
-      setIsDragging(false);
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchend', handleTouchEnd);
-    };
+      const pointerId = e.pointerId;
+      const target = e.currentTarget;
+      target.setPointerCapture(pointerId);
 
-    document.addEventListener('touchmove', handleTouchMove, { passive: false });
-    document.addEventListener('touchend', handleTouchEnd);
-  }, [seekFromEvent]);
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        if (moveEvent.pointerId !== pointerId) return;
+        seekFromEvent(moveEvent.clientX);
+      };
 
-  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    setIsDragging(true);
-    seekFromEvent(e.clientX);
+      const handlePointerUp = (upEvent: PointerEvent) => {
+        if (upEvent.pointerId !== pointerId) return;
+        setIsDragging(false);
+        try {
+          target.releasePointerCapture(pointerId);
+        } catch {
+          // no-op: Safari can throw if capture is already released
+        }
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", handlePointerUp);
+        window.removeEventListener("pointercancel", handlePointerUp);
+      };
 
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      seekFromEvent(moveEvent.clientX);
-    };
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp);
+      window.addEventListener("pointercancel", handlePointerUp);
+    },
+    [duration, seekFromEvent],
+  );
 
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      if (!duration || e.touches.length === 0) return;
+      e.preventDefault();
+      setIsDragging(true);
+      seekFromEvent(e.touches[0].clientX);
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [seekFromEvent]);
+      const handleTouchMove = (moveEvent: TouchEvent) => {
+        if (moveEvent.touches.length > 0) {
+          seekFromEvent(moveEvent.touches[0].clientX);
+        }
+      };
+
+      const handleTouchEnd = () => {
+        setIsDragging(false);
+        window.removeEventListener("touchmove", handleTouchMove);
+        window.removeEventListener("touchend", handleTouchEnd);
+        window.removeEventListener("touchcancel", handleTouchEnd);
+      };
+
+      window.addEventListener("touchmove", handleTouchMove, { passive: false });
+      window.addEventListener("touchend", handleTouchEnd);
+      window.addEventListener("touchcancel", handleTouchEnd);
+    },
+    [duration, seekFromEvent],
+  );
+
+  const handlePlayTouchStart = useCallback(
+    (e: React.TouchEvent<HTMLButtonElement>) => {
+      // Trigger playback immediately inside a touch gesture for iOS Safari.
+      e.preventDefault();
+      onPlayPause();
+    },
+    [onPlayPause],
+  );
 
   return (
     <div className="bottom-bar">
@@ -109,7 +146,7 @@ export function BottomBar({
           <>
             <div className="bottom-bar__left-text">
               <span className="bottom-bar__label">
-                {previewTrack ? 'Previewing' : 'Now Playing'}
+                {previewTrack ? "Previewing" : "Now Playing"}
               </span>
               {track.nts_url ? (
                 <a
@@ -131,7 +168,7 @@ export function BottomBar({
                 alt=""
                 draggable={false}
                 onClick={() => onArtworkClick?.(track)}
-                style={{ cursor: onArtworkClick ? 'pointer' : undefined }}
+                style={{ cursor: onArtworkClick ? "pointer" : undefined }}
               />
             )}
           </>
@@ -146,7 +183,7 @@ export function BottomBar({
           years.map((year) => (
             <button
               key={year}
-              className={`bottom-bar__year${year === selectedYear ? ' bottom-bar__year--selected' : ''}`}
+              className={`bottom-bar__year${year === selectedYear ? " bottom-bar__year--selected" : ""}`}
               onClick={() => onYearChange(year)}
             >
               {year}
@@ -157,7 +194,11 @@ export function BottomBar({
 
       {/* Right: Playback controls */}
       <div className="bottom-bar__right">
-        <button className="bottom-bar__play-button" onClick={onPlayPause}>
+        <button
+          className="bottom-bar__play-button"
+          onClick={onPlayPause}
+          onTouchStart={handlePlayTouchStart}
+        >
           {isPaused ? (
             <svg width="12" height="14" viewBox="0 0 12 14" fill="#000">
               <path d="M0 0L12 7L0 14Z" />
@@ -173,7 +214,7 @@ export function BottomBar({
         <div
           ref={barRef}
           className="bottom-bar__progress-bar"
-          onMouseDown={handleMouseDown}
+          onPointerDown={handlePointerDown}
           onTouchStart={handleTouchStart}
         >
           <div
@@ -181,7 +222,7 @@ export function BottomBar({
             style={{ width: `${progress}%` }}
           />
           <div
-            className={`bottom-bar__progress-dot${isDragging ? ' bottom-bar__progress-dot--dragging' : ''}`}
+            className={`bottom-bar__progress-dot${isDragging ? " bottom-bar__progress-dot--dragging" : ""}`}
             style={{ left: `${progress}%` }}
           />
         </div>

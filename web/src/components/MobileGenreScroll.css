@@ -3,7 +3,7 @@
   top: 0;
   left: 0;
   right: 0;
-  bottom: 50px;
+  bottom: calc(50px + env(safe-area-inset-bottom));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   background: var(--color-white);

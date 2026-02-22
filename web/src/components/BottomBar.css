@@ -10,7 +10,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 10px;
-  z-index: 100;
+  z-index: 300;
+  pointer-events: auto;
 }
 
 /* Left section: Now Playing */
@@ -144,6 +145,7 @@
   background: var(--color-gray-light);
   cursor: pointer;
   position: relative;
+  touch-action: none;
 }
 
 .bottom-bar__progress-fill {
@@ -178,8 +180,8 @@
 
 @media (max-width: 600px) {
   .bottom-bar {
-    height: 50px;
-    padding: 0 16px;
+    height: calc(50px + env(safe-area-inset-bottom));
+    padding: 0 16px env(safe-area-inset-bottom);
     border-top: 1px solid var(--color-black);
   }
   .bottom-bar__left,
