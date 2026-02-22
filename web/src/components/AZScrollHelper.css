@@ -1,7 +1,7 @@
 .az-helper {
   position: fixed;
   left: 8px;
-  top: 50%;
+  top: calc((100dvh - (50px + env(safe-area-inset-bottom))) / 2);
   transform: translateY(-50%);
   z-index: 100;
   user-select: none;

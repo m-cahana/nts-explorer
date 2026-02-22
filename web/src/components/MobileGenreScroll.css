@@ -13,7 +13,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: calc(50vh - 25px) 0 calc(50vh - 25px);
+  padding: calc((100dvh - (50px + env(safe-area-inset-bottom))) / 2 - 25px) 0
+    calc((100dvh - (50px + env(safe-area-inset-bottom))) / 2 - 25px);
 }
 
 .mobile-genre-divider {
