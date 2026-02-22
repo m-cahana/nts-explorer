@@ -27,3 +27,9 @@ body {
   background: var(--color-white);
   color: var(--color-black);
 }
+
+@media (min-width: 601px) {
+  * {
+    cursor: none !important;
+  }
+}
