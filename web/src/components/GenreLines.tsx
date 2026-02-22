@@ -21,13 +21,20 @@ type CursorType =
 function CursorSVG({ type }: { type: CursorType }) {
   return (
     <svg width="32" height="32" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <clipPath id="cursor-clip">
+          <circle cx="16" cy="16" r="15" />
+        </clipPath>
+      </defs>
       <circle
+        className="cursor-ring"
         cx="16"
         cy="16"
         r="14"
         fill="none"
         stroke="white"
         strokeWidth="2"
+        clipPath="url(#cursor-clip)"
       />
       {type === "zoom-in" && (
         <>
@@ -603,6 +610,18 @@ export const GenreLines = forwardRef<GenreLinesHandle, GenreLinesProps>(function
     };
     document.addEventListener("pointermove", handleMove);
     return () => document.removeEventListener("pointermove", handleMove);
+  }, []);
+
+  // Toggle clickable class on cursor when hovering interactive elements
+  useEffect(() => {
+    const handleOver = (e: PointerEvent) => {
+      const clickable = !!(e.target as Element).closest(
+        'a, button, [role="button"], .bottom-bar__progress-bar, .bottom-bar__progress-dot, .bottom-bar__progress-fill'
+      );
+      cursorRef.current?.classList.toggle("custom-cursor--clickable", clickable);
+    };
+    document.addEventListener("pointerover", handleOver);
+    return () => document.removeEventListener("pointerover", handleOver);
   }, []);
 
   // Stable callback refs to avoid re-renders

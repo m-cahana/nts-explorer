@@ -180,6 +180,14 @@
   transform: translate(-16px, -16px);
 }
 
+.custom-cursor .cursor-ring {
+  transition: stroke-width 0.15s ease-out;
+}
+
+.custom-cursor--clickable .cursor-ring {
+  stroke-width: 6;
+}
+
 @keyframes fadeSlideIn {
   from {
     opacity: 0;
@@ -192,6 +200,10 @@
 }
 
 @media (max-width: 600px) {
-  .genre-lines { display: none; }
-  .custom-cursor { display: none; }
+  .genre-lines {
+    display: none;
+  }
+  .custom-cursor {
+    display: none;
+  }
 }

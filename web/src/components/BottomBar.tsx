@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import type { Track } from "../types";
 import "./BottomBar.css";
 
@@ -52,18 +52,30 @@ export function BottomBar({
 }: BottomBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [dragProgress, setDragProgress] = useState<number | null>(null);
+  const [latchedProgress, setLatchedProgress] = useState<number | null>(null);
 
   const track = previewTrack || activeTrack;
   const progress = duration > 0 ? (position / duration) * 100 : 0;
+  const displayProgress = dragProgress ?? latchedProgress ?? progress;
 
-  const seekFromEvent = useCallback(
-    (clientX: number) => {
-      if (!barRef.current || !duration) return;
+  useEffect(() => {
+    if (latchedProgress === null) return;
+    if (Math.abs(progress - latchedProgress) < 0.6) {
+      setLatchedProgress(null);
+      return;
+    }
+    const timer = window.setTimeout(() => setLatchedProgress(null), 1200);
+    return () => window.clearTimeout(timer);
+  }, [latchedProgress, progress]);
+
+  const progressFromClientX = useCallback(
+    (clientX: number): number | null => {
+      if (!barRef.current || !duration) return null;
       const rect = barRef.current.getBoundingClientRect();
-      const percent = (clientX - rect.left) / rect.width;
-      onSeek(Math.max(0, Math.min(duration, percent * duration)));
+      return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     },
-    [duration, onSeek],
+    [duration],
   );
 
   const handlePointerDown = useCallback(
@@ -71,7 +83,9 @@ export function BottomBar({
       if (!duration) return;
       e.preventDefault();
       setIsDragging(true);
-      seekFromEvent(e.clientX);
+      setLatchedProgress(null);
+      const pct = progressFromClientX(e.clientX);
+      if (pct !== null) setDragProgress(pct * 100);
 
       const pointerId = e.pointerId;
       const target = e.currentTarget;
@@ -79,27 +93,37 @@ export function BottomBar({
 
       const handlePointerMove = (moveEvent: PointerEvent) => {
         if (moveEvent.pointerId !== pointerId) return;
-        seekFromEvent(moveEvent.clientX);
+        const p = progressFromClientX(moveEvent.clientX);
+        if (p !== null) setDragProgress(p * 100);
       };
 
       const handlePointerUp = (upEvent: PointerEvent) => {
         if (upEvent.pointerId !== pointerId) return;
+        // Seek once at the final drag position
+        const p = progressFromClientX(upEvent.clientX);
+        if (p !== null) {
+          setLatchedProgress(p * 100);
+          onSeek(p * duration);
+        }
         setIsDragging(false);
+        setDragProgress(null);
         try {
           target.releasePointerCapture(pointerId);
         } catch {
           // no-op: Safari can throw if capture is already released
         }
-        window.removeEventListener("pointermove", handlePointerMove);
-        window.removeEventListener("pointerup", handlePointerUp);
-        window.removeEventListener("pointercancel", handlePointerUp);
+        target.removeEventListener("pointermove", handlePointerMove);
+        target.removeEventListener("pointerup", handlePointerUp);
+        target.removeEventListener("pointercancel", handlePointerUp);
       };
 
-      window.addEventListener("pointermove", handlePointerMove);
-      window.addEventListener("pointerup", handlePointerUp);
-      window.addEventListener("pointercancel", handlePointerUp);
+      // Listen on the capturing element — captured pointer events are
+      // dispatched to it directly and may not bubble reliably to window.
+      target.addEventListener("pointermove", handlePointerMove);
+      target.addEventListener("pointerup", handlePointerUp);
+      target.addEventListener("pointercancel", handlePointerUp);
     },
-    [duration, seekFromEvent],
+    [duration, onSeek, progressFromClientX],
   );
 
   const handleTouchStart = useCallback(
@@ -107,16 +131,28 @@ export function BottomBar({
       if (!duration || e.touches.length === 0) return;
       e.preventDefault();
       setIsDragging(true);
-      seekFromEvent(e.touches[0].clientX);
+      setLatchedProgress(null);
+      const pct = progressFromClientX(e.touches[0].clientX);
+      if (pct !== null) setDragProgress(pct * 100);
 
       const handleTouchMove = (moveEvent: TouchEvent) => {
         if (moveEvent.touches.length > 0) {
-          seekFromEvent(moveEvent.touches[0].clientX);
+          const p = progressFromClientX(moveEvent.touches[0].clientX);
+          if (p !== null) setDragProgress(p * 100);
         }
       };
 
-      const handleTouchEnd = () => {
+      const handleTouchEnd = (endEvent: TouchEvent) => {
+        const touch = endEvent.changedTouches[0];
+        if (touch) {
+          const p = progressFromClientX(touch.clientX);
+          if (p !== null) {
+            setLatchedProgress(p * 100);
+            onSeek(p * duration);
+          }
+        }
         setIsDragging(false);
+        setDragProgress(null);
         window.removeEventListener("touchmove", handleTouchMove);
         window.removeEventListener("touchend", handleTouchEnd);
         window.removeEventListener("touchcancel", handleTouchEnd);
@@ -126,7 +162,7 @@ export function BottomBar({
       window.addEventListener("touchend", handleTouchEnd);
       window.addEventListener("touchcancel", handleTouchEnd);
     },
-    [duration, seekFromEvent],
+    [duration, onSeek, progressFromClientX],
   );
 
   const handlePlayTouchStart = useCallback(
@@ -219,11 +255,11 @@ export function BottomBar({
         >
           <div
             className="bottom-bar__progress-fill"
-            style={{ width: `${progress}%` }}
+            style={{ width: `${displayProgress}%` }}
           />
           <div
             className={`bottom-bar__progress-dot${isDragging ? " bottom-bar__progress-dot--dragging" : ""}`}
-            style={{ left: `${progress}%` }}
+            style={{ left: `${displayProgress}%` }}
           />
         </div>
 

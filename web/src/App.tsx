@@ -30,6 +30,7 @@ function App() {
   const [activeTrack, setActiveTrack] = useState<Track | null>(null);
   const [previewTrack, setPreviewTrack] = useState<Track | null>(null);
   const [position, setPosition] = useState(0);
+  const lastSeekTimeRef = useRef(0);
   const [duration, setDuration] = useState(0);
   const [isPaused, setIsPaused] = useState(true);
 
@@ -48,6 +49,10 @@ function App() {
   useEffect(() => {
     nowPlayingTrackRef.current = nowPlayingTrack;
   }, [nowPlayingTrack]);
+  const previewTrackRef = useRef<Track | null>(null);
+  useEffect(() => {
+    previewTrackRef.current = previewTrack;
+  }, [previewTrack]);
 
   const savedPositionRef = useRef(0);
 
@@ -55,10 +60,27 @@ function App() {
     setHasEntered(true);
   }, []);
 
-  const handleProgress = useCallback((pos: number, dur: number) => {
+  const updateActiveProgress = useCallback((pos: number, dur: number) => {
+    if (Date.now() - lastSeekTimeRef.current < 800) return;
     setPosition(pos);
     setDuration(dur);
   }, []);
+
+  const handleMainProgress = useCallback(
+    (pos: number, dur: number) => {
+      if (previewTrackRef.current) return;
+      updateActiveProgress(pos, dur);
+    },
+    [updateActiveProgress],
+  );
+
+  const handlePreviewProgress = useCallback(
+    (pos: number, dur: number) => {
+      if (!previewTrackRef.current) return;
+      updateActiveProgress(pos, dur);
+    },
+    [updateActiveProgress],
+  );
 
   const applyMediaSessionMetadata = useCallback((track: Track | null) => {
     if (!("mediaSession" in navigator)) return;
@@ -167,9 +189,11 @@ function App() {
   }, [handlePlayPause]);
 
   const handleSeek = useCallback((positionMs: number) => {
-    if (mainPlayerRef.current) {
-      mainPlayerRef.current.seekTo(positionMs);
-    }
+    const player = previewTrackRef.current ? previewPlayerRef.current : mainPlayerRef.current;
+    if (!player) return;
+    lastSeekTimeRef.current = Date.now();
+    player.seekTo(positionMs);
+    setPosition(positionMs);
   }, []);
 
   const handleArtworkClick = useCallback((track: Track) => {
@@ -323,14 +347,14 @@ function App() {
 
           <SoundCloudPlayer
             ref={mainPlayerRef}
-            onProgress={handleProgress}
+            onProgress={handleMainProgress}
             onPlay={handlePlay}
             onPause={handlePause}
           />
 
           <SoundCloudPlayer
             ref={previewPlayerRef}
-            onProgress={handleProgress}
+            onProgress={handlePreviewProgress}
             onPlay={handlePlay}
             onPause={handlePause}
           />

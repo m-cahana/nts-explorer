@@ -51,6 +51,7 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, SoundCloudPla
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const widgetRef = useRef<SCWidget | null>(null);
     const positionRef = useRef(0);
+    const isPlayingRef = useRef(false);
     const pendingSeekRef = useRef<number | null>(null);
     const currentTrackUrlRef = useRef<string | null>(null);
     const playRequestedRef = useRef(false);
@@ -90,11 +91,13 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, SoundCloudPla
       });
 
       widgetRef.current.bind(window.SC.Widget.Events.PLAY, () => {
+        isPlayingRef.current = true;
         playRequestedRef.current = false;
         onPlay?.();
       });
 
       widgetRef.current.bind(window.SC.Widget.Events.PAUSE, () => {
+        isPlayingRef.current = false;
         onPause?.();
       });
 
@@ -107,7 +110,7 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, SoundCloudPla
         positionRef.current = progressData.currentPosition;
         if (onProgress && widgetRef.current) {
           widgetRef.current.getDuration((duration) => {
-            onProgress(progressData.currentPosition, duration);
+            onProgress(positionRef.current, duration);
           });
         }
       });
@@ -179,7 +182,11 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, SoundCloudPla
         widgetRef.current?.pause();
       },
       seekTo: (positionMs: number) => {
-        widgetRef.current?.seekTo(positionMs);
+        if (!widgetRef.current) return;
+        widgetRef.current.seekTo(positionMs);
+        if (isPlayingRef.current) {
+          widgetRef.current.play();
+        }
       },
       getPosition: () => positionRef.current,
     }));

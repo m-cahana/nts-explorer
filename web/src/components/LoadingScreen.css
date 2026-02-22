@@ -17,8 +17,19 @@
   opacity: 0;
 }
 
-.loading-screen--clickable {
-  cursor: pointer;
+.loading-screen,
+.loading-screen * {
+  cursor: default !important;
+}
+
+.loading-screen--clickable,
+.loading-screen--clickable * {
+  cursor: default !important;
+}
+
+.loading-screen--clickable .loading-screen__bar,
+.loading-screen--clickable .loading-screen__bar * {
+  cursor: pointer !important;
 }
 
 .loading-screen__title {
