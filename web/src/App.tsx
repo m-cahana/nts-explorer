@@ -15,6 +15,10 @@ import { Analytics } from "@vercel/analytics/react";
 const PREVIEW_START_MS = 300000; // 5 minutes
 const DEFAULT_YEAR = 2026;
 
+function getArtworkUrl(url: string, size: number): string {
+  return url.replace(/-large\./, `-t${size}x${size}.`).replace(/-t\d+x\d+\./, `-t${size}x${size}.`);
+}
+
 function App() {
   const isMobile = useIsMobile();
   const [selectedYear, setSelectedYear] = useState(DEFAULT_YEAR);
@@ -39,6 +43,11 @@ function App() {
   useEffect(() => {
     activeTrackRef.current = activeTrack;
   }, [activeTrack]);
+  const nowPlayingTrack = previewTrack ?? activeTrack;
+  const nowPlayingTrackRef = useRef<Track | null>(null);
+  useEffect(() => {
+    nowPlayingTrackRef.current = nowPlayingTrack;
+  }, [nowPlayingTrack]);
 
   const savedPositionRef = useRef(0);
 
@@ -51,9 +60,41 @@ function App() {
     setDuration(dur);
   }, []);
 
+  const applyMediaSessionMetadata = useCallback((track: Track | null) => {
+    if (!("mediaSession" in navigator)) return;
+    if (!track) {
+      navigator.mediaSession.metadata = null;
+      return;
+    }
+
+    const artwork = track.artwork_url
+      ? [96, 128, 192, 256, 384, 512].map((size) => ({
+          src: getArtworkUrl(track.artwork_url!, size),
+          sizes: `${size}x${size}`,
+          type: "image/jpeg",
+        }))
+      : [];
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: track.title,
+      artist: "NTS Radio",
+      album: track.nts_show_alias ?? track.nts_broadcast ?? undefined,
+      artwork,
+    });
+  }, []);
+
   const handlePlay = useCallback(() => {
     setIsPaused(false);
-  }, []);
+
+    // iOS/Safari can let the SoundCloud iframe overwrite lock-screen metadata.
+    // Re-assert track metadata shortly after playback starts.
+    window.setTimeout(() => {
+      applyMediaSessionMetadata(nowPlayingTrackRef.current);
+    }, 50);
+    window.setTimeout(() => {
+      applyMediaSessionMetadata(nowPlayingTrackRef.current);
+    }, 500);
+  }, [applyMediaSessionMetadata]);
 
   const handlePause = useCallback(() => {
     setIsPaused(true);
@@ -139,31 +180,8 @@ function App() {
 
   // Media Session API — metadata
   useEffect(() => {
-    if (!("mediaSession" in navigator) || !activeTrack) return;
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: activeTrack.title,
-      artist: "NTS Radio",
-      album: activeTrack.nts_show_alias ?? undefined,
-      artwork: activeTrack.artwork_url
-        ? [
-            {
-              src: activeTrack.artwork_url
-                .replace(/-large\./, "-t300x300.")
-                .replace(/-t\d+x\d+\./, "-t300x300."),
-              sizes: "300x300",
-              type: "image/jpeg",
-            },
-            {
-              src: activeTrack.artwork_url
-                .replace(/-large\./, "-t500x500.")
-                .replace(/-t\d+x\d+\./, "-t500x500."),
-              sizes: "500x500",
-              type: "image/jpeg",
-            },
-          ]
-        : [],
-    });
-  }, [activeTrack]);
+    applyMediaSessionMetadata(nowPlayingTrack);
+  }, [nowPlayingTrack, applyMediaSessionMetadata]);
 
   // Media Session API — playback state
   useEffect(() => {
