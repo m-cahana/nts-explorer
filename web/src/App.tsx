@@ -183,6 +183,19 @@ function App() {
     applyMediaSessionMetadata(nowPlayingTrack);
   }, [nowPlayingTrack, applyMediaSessionMetadata]);
 
+  // iOS/Safari resilience: periodically re-assert metadata while actively playing.
+  useEffect(() => {
+    if (!("mediaSession" in navigator) || isPaused || !nowPlayingTrack) return;
+
+    const heartbeat = window.setInterval(() => {
+      applyMediaSessionMetadata(nowPlayingTrackRef.current);
+    }, 10000);
+
+    return () => {
+      window.clearInterval(heartbeat);
+    };
+  }, [isPaused, nowPlayingTrack, applyMediaSessionMetadata]);
+
   // Media Session API — playback state
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
