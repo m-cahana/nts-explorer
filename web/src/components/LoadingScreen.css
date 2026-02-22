@@ -69,12 +69,17 @@
   inset: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   font-family: var(--font-display-2);
   font-size: 16px;
-  font-weight: 100;
+  font-weight: 500;
+  padding: 0 50px;
   opacity: 0;
   transition: opacity 1s ease-in 0.3s;
+}
+
+.loading-screen__cta span {
+  white-space: nowrap;
 }
 
 .loading-screen__cta--visible {

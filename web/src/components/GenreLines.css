@@ -123,7 +123,7 @@
   position: absolute;
   top: 20px;
   left: 20px;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 24px;
   font-weight: bold;
   color: var(--color-white);
@@ -185,7 +185,7 @@
 }
 
 .custom-cursor--clickable .cursor-ring {
-  stroke-width: 6;
+  stroke-width: 10;
 }
 
 @keyframes fadeSlideIn {

@@ -50,7 +50,9 @@ export function LoadingScreen({ loading, progress, onEnter }: LoadingScreenProps
           style={{ width: `${progress}%` }}
         />
         <div className={`loading-screen__cta${loaded ? ' loading-screen__cta--visible' : ''}`}>
-          click to explore
+          <span>click</span>
+          <span>to</span>
+          <span>explore</span>
         </div>
       </div>
     </div>
