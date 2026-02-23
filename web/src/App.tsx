@@ -38,6 +38,7 @@ function App() {
   const mainPlayerRef = useRef<SoundCloudPlayerHandle>(null);
   const previewPlayerRef = useRef<SoundCloudPlayerHandle>(null);
   const genreLinesRef = useRef<GenreLinesHandle>(null);
+  const silenceRef = useRef<HTMLAudioElement>(null);
 
   // Ref to track activeTrack without causing callback recreation
   const activeTrackRef = useRef(activeTrack);
@@ -134,6 +135,7 @@ function App() {
     if (previewPlayerRef.current) {
       previewPlayerRef.current.loadTrack(track.permalink_url, PREVIEW_START_MS);
     }
+    silenceRef.current?.play();
   }, []);
 
   const handleHoverEnd = useCallback(() => {
@@ -146,6 +148,7 @@ function App() {
     // Resume main player
     if (activeTrackRef.current && mainPlayerRef.current) {
       mainPlayerRef.current.play();
+      silenceRef.current?.play();
     }
   }, []);
 
@@ -159,6 +162,7 @@ function App() {
     setPreviewTrack(null);
 
     // Play from beginning
+    silenceRef.current?.play();
     setActiveTrack(track);
     if (mainPlayerRef.current) {
       mainPlayerRef.current.loadTrack(track.permalink_url, 0);
@@ -170,16 +174,20 @@ function App() {
       if (!previewPlayerRef.current) return;
       if (isPaused) {
         previewPlayerRef.current.play();
+        silenceRef.current?.play();
       } else {
         previewPlayerRef.current.pause();
+        silenceRef.current?.pause();
       }
       return;
     }
     if (!mainPlayerRef.current) return;
     if (isPaused) {
       mainPlayerRef.current.play();
+      silenceRef.current?.play();
     } else {
       mainPlayerRef.current.pause();
+      silenceRef.current?.pause();
     }
   }, [isPaused, previewTrack]);
 
@@ -297,6 +305,7 @@ function App() {
     if (previewPlayerRef.current) {
       previewPlayerRef.current.pause();
     }
+    silenceRef.current?.pause();
 
     // Clear active/preview track
     setActiveTrack(null);
@@ -356,6 +365,8 @@ function App() {
               onClick={handleClick}
             />
           )}
+
+          <audio ref={silenceRef} src="/silence.mp3" loop style={{ display: 'none' }} />
 
           <SoundCloudPlayer
             ref={mainPlayerRef}
