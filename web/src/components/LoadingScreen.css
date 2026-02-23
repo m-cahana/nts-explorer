@@ -70,9 +70,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-display-2);
+  font-family: var(--font-loading-cta);
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 300;
   opacity: 0;
   transition: opacity 1s ease-in 0.3s;
 }

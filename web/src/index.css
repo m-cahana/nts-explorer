@@ -6,9 +6,11 @@
   --color-gray-light: #e0e0e0;
   --color-gray-mid: #ccc;
   --font-display: "Futura", "Trebuchet MS", Arial, sans-serif;
-  --font-display-2: "neue-haas-grotesk-display", sans-serif;
+  --font-loading-cta: "century-gothic", sans-serif;
+  --font-display-secondary: "sofia-pro", sans-serif;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-system: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-system:
+    system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 * {
@@ -17,7 +19,9 @@
   box-sizing: border-box;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   width: 100%;
   height: 100%;
   overflow: hidden;
