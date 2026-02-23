@@ -107,8 +107,8 @@ async def get_client_id(session: aiohttp.ClientSession) -> str:
     raise Exception("Could not extract client_id from SoundCloud scripts")
 
 
-async def get_user_id(session: aiohttp.ClientSession, client_id: str, username: str) -> int:
-    """Resolve a username to a numeric user ID."""
+async def get_user_info(session: aiohttp.ClientSession, client_id: str, username: str) -> tuple[int, int]:
+    """Resolve a username to a numeric user ID and track count."""
     url = "https://api-v2.soundcloud.com/resolve"
     params = {
         "url": f"https://soundcloud.com/{username}",
@@ -119,7 +119,7 @@ async def get_user_id(session: aiohttp.ClientSession, client_id: str, username: 
         if resp.status != 200:
             raise Exception(f"Failed to resolve user: {await resp.text()}")
         data = await resp.json()
-        return data["id"]
+        return data["id"], data.get("track_count", 0)
 
 
 def get_progress(user_id: str) -> Dict:
@@ -147,7 +147,7 @@ def get_progress(user_id: str) -> Dict:
         return {"current_offset": 0, "next_cursor": None}
 
 
-def save_progress(total_scraped: int, user_id: str, next_cursor: Optional[str] = None):
+def save_progress(total_scraped: int, user_id: str, next_cursor: Optional[str] = None, last_track_count: Optional[int] = None):
     """Save current progress to Supabase."""
     data = {
         "id": 1,
@@ -157,6 +157,8 @@ def save_progress(total_scraped: int, user_id: str, next_cursor: Optional[str] =
     }
     if next_cursor:
         data["next_cursor"] = next_cursor
+    if last_track_count is not None:
+        data["last_track_count"] = last_track_count
     supabase.table("scrape_progress").upsert(data).execute()
 
 
@@ -166,6 +168,7 @@ def reset_progress(user_id: str = None):
         "id": 1,
         "current_offset": 0,
         "next_cursor": None,
+        "last_track_count": None,
         "updated_at": datetime.utcnow().isoformat()
     }
     if user_id:
@@ -356,6 +359,8 @@ def save_tracks_batch(tracks: List[Dict]):
 
 async def scrape_all(start_fresh: bool = False):
     """Main scraping function using cursor-based pagination."""
+    import math
+
     # Use cookie jar to maintain session cookies like a real browser
     jar = aiohttp.CookieJar()
 
@@ -369,28 +374,42 @@ async def scrape_all(start_fresh: bool = False):
         # 1. Discover client_id
         client_id = await get_client_id(session)
 
-        # 2. Resolve username to user ID
+        # 2. Resolve username to user ID and current track count
         print(f"Resolving user: {SOUNDCLOUD_USER_ID}")
-        user_id = await get_user_id(session, client_id, SOUNDCLOUD_USER_ID)
-        print(f"User ID: {user_id}")
+        user_id, current_track_count = await get_user_info(session, client_id, SOUNDCLOUD_USER_ID)
+        print(f"User ID: {user_id} | SoundCloud track count: {current_track_count}")
 
         # 3. Get resume progress (auto-resets if user_id changed)
         if start_fresh:
             reset_progress(SOUNDCLOUD_USER_ID)
-        
+
         progress = get_progress(SOUNDCLOUD_USER_ID)
         total_scraped = progress.get("current_offset", 0)
         saved_cursor = progress.get("next_cursor")
+        last_track_count = progress.get("last_track_count") or 0
 
-        # 4. Build initial URL or resume from cursor
+        # 4. Determine scrape mode
         base_url = f"https://api-v2.soundcloud.com/users/{user_id}/tracks"
+        max_batches = None  # None = no cap (full scrape)
 
-        if total_scraped > 0 and saved_cursor:
-            print(f"Resuming from {total_scraped} tracks (using saved cursor)")
-            current_url = saved_cursor
+        if last_track_count == 0:
+            # Full scrape: use cursor-based crash recovery as before
+            print("Mode: full scrape (no previous track count recorded)")
+            if total_scraped > 0 and saved_cursor:
+                print(f"Resuming from {total_scraped} tracks (using saved cursor)")
+                current_url = saved_cursor
+            else:
+                if total_scraped > 0:
+                    print(f"Note: {total_scraped} tracks in DB, but no cursor saved. Starting from beginning (duplicates will be skipped via upsert)")
+                current_url = f"{base_url}?limit={BATCH_SIZE}&linked_partitioning=1"
         else:
-            if total_scraped > 0:
-                print(f"Note: {total_scraped} tracks in DB, but no cursor saved. Starting from beginning (duplicates will be skipped via upsert)")
+            # Incremental scrape: always start from page 1 (newest first)
+            new_tracks = current_track_count - last_track_count
+            if new_tracks <= 0:
+                print(f"No new tracks (last count: {last_track_count}, current: {current_track_count}). Nothing to do.")
+                return
+            max_batches = math.ceil(new_tracks / BATCH_SIZE) + 1  # +1 buffer batch
+            print(f"Mode: incremental scrape | New tracks: {new_tracks} | Batches to fetch: {max_batches}")
             current_url = f"{base_url}?limit={BATCH_SIZE}&linked_partitioning=1"
 
         batch_num = 0
@@ -399,10 +418,15 @@ async def scrape_all(start_fresh: bool = False):
         print("Starting scrape...")
         await asyncio.sleep(random.uniform(1.0, 2.0))
 
-        # 5. Paginate through all tracks using cursor (next_href)
+        # 5. Paginate through tracks using cursor (next_href)
         while current_url:
             batch_num += 1
             print(f"\nFetching batch {batch_num}...")
+
+            # Stop after max_batches in incremental mode
+            if max_batches is not None and batch_num > max_batches:
+                print(f"Reached batch limit ({max_batches}). Incremental scrape complete.")
+                break
 
             try:
                 batch = await fetch_tracks_page(session, current_url, client_id)
@@ -438,9 +462,10 @@ async def scrape_all(start_fresh: bool = False):
             # 8. Get next page URL (cursor-based pagination)
             next_href = batch.get("next_href")
 
-            # 9. Update progress WITH cursor for true resume capability
+            # 9. Update progress (include cursor only for full scrapes)
             total_scraped += len(tracks)
-            save_progress(total_scraped, SOUNDCLOUD_USER_ID, next_href)
+            cursor_to_save = next_href if max_batches is None else None
+            save_progress(total_scraped, SOUNDCLOUD_USER_ID, cursor_to_save)
 
             print(f"  Progress saved. Total scraped: {total_scraped}")
 
@@ -451,9 +476,12 @@ async def scrape_all(start_fresh: bool = False):
             current_url = next_href
             await asyncio.sleep(jittered_delay(BATCH_DELAY))
 
+        # 10. On clean completion, record current track count for next incremental run
+        save_progress(total_scraped, SOUNDCLOUD_USER_ID, last_track_count=current_track_count)
         print(f"\n{'='*50}")
         print(f"Scraping finished!")
-        print(f"Total tracks scraped: {total_scraped}")
+        print(f"Total tracks scraped this run: {total_scraped}")
+        print(f"Saved last_track_count: {current_track_count}")
 
 
 if __name__ == "__main__":
