@@ -15,15 +15,10 @@ jobs:
   scrape:
     runs-on: self-hosted
     timeout-minutes: 240  # 4 hours
-    
+
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Install dependencies
-        run: |
-          cd scraper
-          pip3 install -r requirements.txt
-      
+
       - name: Run SoundCloud scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -33,7 +28,7 @@ jobs:
         run: |
           cd scraper
           if [ "${{ inputs.reset }}" = "true" ]; then
-            python3 scraper.py --reset
+            venv/bin/python3 scraper.py --reset
           else
-            python3 scraper.py
+            venv/bin/python3 scraper.py
           fi
