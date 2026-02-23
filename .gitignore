@@ -21,6 +21,9 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+# GitHub Actions self-hosted runner
+actions-runner/
+
 # AI tool local config
 .agents/
 .claude/
