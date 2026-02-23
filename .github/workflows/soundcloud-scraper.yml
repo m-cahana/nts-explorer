@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd scraper
-          pip install -r requirements.txt
+          pip3 install -r requirements.txt
       
       - name: Run SoundCloud scraper
         env:
@@ -33,7 +33,7 @@ jobs:
         run: |
           cd scraper
           if [ "${{ inputs.reset }}" = "true" ]; then
-            python scraper.py --reset
+            python3 scraper.py --reset
           else
-            python scraper.py
+            python3 scraper.py
           fi
