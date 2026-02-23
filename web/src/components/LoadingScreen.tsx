@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import './LoadingScreen.css';
+import { useState, useEffect } from "react";
+import "./LoadingScreen.css";
 
 interface LoadingScreenProps {
   loading: boolean;
@@ -8,7 +8,11 @@ interface LoadingScreenProps {
   onEnter: () => void;
 }
 
-export function LoadingScreen({ loading, progress, onEnter }: LoadingScreenProps) {
+export function LoadingScreen({
+  loading,
+  progress,
+  onEnter,
+}: LoadingScreenProps) {
   const [visible, setVisible] = useState(true);
   const [fading, setFading] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -35,9 +39,9 @@ export function LoadingScreen({ loading, progress, onEnter }: LoadingScreenProps
 
   if (!visible) return null;
 
-  let className = 'loading-screen';
-  if (fading) className += ' loading-screen--fading';
-  if (loaded) className += ' loading-screen--clickable';
+  let className = "loading-screen";
+  if (fading) className += " loading-screen--fading";
+  if (loaded) className += " loading-screen--clickable";
 
   return (
     <div className={className} onClick={handleClick}>
@@ -46,13 +50,13 @@ export function LoadingScreen({ loading, progress, onEnter }: LoadingScreenProps
       </div>
       <div className="loading-screen__bar">
         <div
-          className={`loading-screen__fill${loaded ? ' loading-screen__fill--complete' : ''}`}
+          className={`loading-screen__fill${loaded ? " loading-screen__fill--complete" : ""}`}
           style={{ width: `${progress}%` }}
         />
-        <div className={`loading-screen__cta${loaded ? ' loading-screen__cta--visible' : ''}`}>
-          <span>click</span>
-          <span>to</span>
-          <span>explore</span>
+        <div
+          className={`loading-screen__cta${loaded ? " loading-screen__cta--visible" : ""}`}
+        >
+          enter
         </div>
       </div>
     </div>
