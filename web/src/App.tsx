@@ -55,6 +55,8 @@ function App() {
     previewTrackRef.current = previewTrack;
   }, [previewTrack]);
 
+  const artworkBlobUrlRef = useRef<string | null>(null);
+
   const savedPositionRef = useRef(0);
 
   const handleEnter = useCallback(() => {
@@ -90,12 +92,11 @@ function App() {
       return;
     }
 
-    const artwork = track.artwork_url
-      ? [96, 128, 192, 256, 384, 512].map((size) => ({
-          src: getArtworkUrl(track.artwork_url!, size),
-          sizes: `${size}x${size}`,
-          type: "image/jpeg",
-        }))
+    const artworkSrc = artworkBlobUrlRef.current ??
+      (track.artwork_url ? getArtworkUrl(track.artwork_url, 512) : null);
+
+    const artwork = artworkSrc
+      ? [{ src: artworkSrc, sizes: '512x512', type: 'image/jpeg' }]
       : [];
 
     navigator.mediaSession.metadata = new MediaMetadata({
@@ -213,6 +214,33 @@ function App() {
   // Media Session API — metadata
   useEffect(() => {
     applyMediaSessionMetadata(nowPlayingTrack);
+  }, [nowPlayingTrack, applyMediaSessionMetadata]);
+
+  // Pre-fetch artwork as a blob URL so the OS lock screen can display it
+  useEffect(() => {
+    const track = nowPlayingTrack;
+    if (!track?.artwork_url) return;
+
+    const url = getArtworkUrl(track.artwork_url, 512);
+    let active = true;
+
+    fetch(url)
+      .then(r => r.blob())
+      .then(blob => {
+        if (!active) return;
+        if (artworkBlobUrlRef.current) URL.revokeObjectURL(artworkBlobUrlRef.current);
+        artworkBlobUrlRef.current = URL.createObjectURL(blob);
+        applyMediaSessionMetadata(nowPlayingTrackRef.current);
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+      if (artworkBlobUrlRef.current) {
+        URL.revokeObjectURL(artworkBlobUrlRef.current);
+        artworkBlobUrlRef.current = null;
+      }
+    };
   }, [nowPlayingTrack, applyMediaSessionMetadata]);
 
   // iOS/Safari resilience: periodically re-assert metadata while actively playing.
