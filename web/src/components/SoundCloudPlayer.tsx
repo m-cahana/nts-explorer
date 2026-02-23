@@ -207,7 +207,7 @@ export const SoundCloudPlayer = forwardRef<SoundCloudPlayerHandle, SoundCloudPla
           pointerEvents: 'none',
           border: 'none',
         }}
-        allow="autoplay"
+        allow="autoplay; media-session 'none'"
       />
     );
   }
