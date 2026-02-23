@@ -28,7 +28,7 @@ jobs:
         run: |
           cd scraper
           if [ "${{ inputs.reset }}" = "true" ]; then
-            venv/bin/python3 scraper.py --reset
+            /Users/michaelcahana/local_storage/repos/nts-explorer/scraper/venv/bin/python3 scraper.py --reset
           else
-            venv/bin/python3 scraper.py
+            /Users/michaelcahana/local_storage/repos/nts-explorer/scraper/venv/bin/python3 scraper.py
           fi
