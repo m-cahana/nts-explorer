@@ -18,7 +18,7 @@ from datetime import datetime
 from typing import Optional, List, Dict
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
-import aiohttp
+from curl_cffi import requests as curl_requests
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
@@ -71,12 +71,12 @@ NTS_HEADERS = {
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
-async def get_client_id(session: aiohttp.ClientSession) -> str:
+async def get_client_id(session: curl_requests.AsyncSession) -> str:
     """Extract client_id from SoundCloud's JavaScript bundles."""
     print("Discovering SoundCloud client_id...")
 
-    async with session.get("https://soundcloud.com", headers=SOUNDCLOUD_HEADERS, proxy=PROXY_URL) as resp:
-        html = await resp.text()
+    resp = await session.get("https://soundcloud.com", headers=SOUNDCLOUD_HEADERS)
+    html = resp.text
 
     script_pattern = r'<script crossorigin src="(https://[^"]+\.js)"'
     script_urls = re.findall(script_pattern, html)
@@ -92,8 +92,8 @@ async def get_client_id(session: aiohttp.ClientSession) -> str:
 
     for script_url in script_urls:
         try:
-            async with session.get(script_url, headers=SOUNDCLOUD_HEADERS, proxy=PROXY_URL) as resp:
-                js_content = await resp.text()
+            resp = await session.get(script_url, headers=SOUNDCLOUD_HEADERS)
+            js_content = resp.text
 
             for pattern in patterns:
                 client_id_match = re.search(pattern, js_content)
@@ -107,7 +107,7 @@ async def get_client_id(session: aiohttp.ClientSession) -> str:
     raise Exception("Could not extract client_id from SoundCloud scripts")
 
 
-async def get_user_info(session: aiohttp.ClientSession, client_id: str, username: str) -> tuple[int, int]:
+async def get_user_info(session: curl_requests.AsyncSession, client_id: str, username: str) -> tuple[int, int]:
     """Resolve a username to a numeric user ID and track count."""
     url = "https://api-v2.soundcloud.com/resolve"
     params = {
@@ -115,11 +115,11 @@ async def get_user_info(session: aiohttp.ClientSession, client_id: str, username
         "client_id": client_id
     }
 
-    async with session.get(url, params=params, headers=SOUNDCLOUD_HEADERS, proxy=PROXY_URL) as resp:
-        if resp.status != 200:
-            raise Exception(f"Failed to resolve user: {await resp.text()}")
-        data = await resp.json()
-        return data["id"], data.get("track_count", 0)
+    resp = await session.get(url, params=params, headers=SOUNDCLOUD_HEADERS)
+    if resp.status_code != 200:
+        raise Exception(f"Failed to resolve user: {resp.text}")
+    data = resp.json()
+    return data["id"], data.get("track_count", 0)
 
 
 def get_progress(user_id: str) -> Dict:
@@ -188,22 +188,21 @@ def add_client_id_to_url(url: str, client_id: str) -> str:
 
 
 async def fetch_tracks_page(
-    session: aiohttp.ClientSession,
+    session: curl_requests.AsyncSession,
     url: str,
     client_id: str
 ) -> dict:
     """Fetch a page of tracks from a URL."""
-    # Ensure client_id is in the URL
     url = add_client_id_to_url(url, client_id)
 
-    async with session.get(url, headers=SOUNDCLOUD_HEADERS, proxy=PROXY_URL) as resp:
-        if resp.status != 200:
-            raise Exception(f"Failed to fetch tracks ({resp.status}): {await resp.text()}")
-        return await resp.json()
+    resp = await session.get(url, headers=SOUNDCLOUD_HEADERS)
+    if resp.status_code != 200:
+        raise Exception(f"Failed to fetch tracks ({resp.status_code}): {resp.text}")
+    return resp.json()
 
 
 async def fetch_track_details(
-    session: aiohttp.ClientSession,
+    session: curl_requests.AsyncSession,
     client_id: str,
     track_id: int
 ) -> Optional[Dict]:
@@ -212,60 +211,56 @@ async def fetch_track_details(
     params = {"client_id": client_id}
 
     try:
-        async with session.get(url, params=params, headers=SOUNDCLOUD_HEADERS, proxy=PROXY_URL) as resp:
-            if resp.status != 200:
-                print(f"  Warning: Could not fetch track {track_id}")
-                return None
-            data = await resp.json()
+        resp = await session.get(url, params=params, headers=SOUNDCLOUD_HEADERS)
+        if resp.status_code != 200:
+            print(f"  Warning: Could not fetch track {track_id}")
+            return None
+        data = resp.json()
 
-            tag_list = data.get("tag_list", "")
-            genre_tags = parse_tags(tag_list)
-            description = data.get("description")
+        tag_list = data.get("tag_list", "")
+        genre_tags = parse_tags(tag_list)
+        description = data.get("description")
 
-            # Build base track data
-            track_data = {
-                "soundcloud_id": data["id"],
-                "title": data.get("title", ""),
-                "permalink_url": data.get("permalink_url", ""),
-                "artwork_url": data.get("artwork_url"),
-                "duration_ms": data.get("duration"),
-                "genre_tags": genre_tags,
-                "description": description,
-                "play_count": data.get("playback_count"),
-                "is_streamable": data.get("streamable", True),
-                "created_at": data.get("created_at"),
-                # NTS fields default to None
-                "nts_url": None,
-                "nts_show_alias": None,
-                "nts_episode_alias": None,
-                "nts_location": None,
-                "nts_genres": None,
-                "nts_moods": None,
-                "nts_intensity": None,
-                "nts_broadcast": None,
-            }
+        track_data = {
+            "soundcloud_id": data["id"],
+            "title": data.get("title", ""),
+            "permalink_url": data.get("permalink_url", ""),
+            "artwork_url": data.get("artwork_url"),
+            "duration_ms": data.get("duration"),
+            "genre_tags": genre_tags,
+            "description": description,
+            "play_count": data.get("playback_count"),
+            "is_streamable": data.get("streamable", True),
+            "created_at": data.get("created_at"),
+            "nts_url": None,
+            "nts_show_alias": None,
+            "nts_episode_alias": None,
+            "nts_location": None,
+            "nts_genres": None,
+            "nts_moods": None,
+            "nts_intensity": None,
+            "nts_broadcast": None,
+        }
 
-            # Extract NTS URL from description
-            nts_info = extract_nts_url(description)
-            if nts_info:
-                track_data["nts_url"] = nts_info["url"]
-                track_data["nts_show_alias"] = nts_info["show_alias"]
-                track_data["nts_episode_alias"] = nts_info["episode_alias"]
+        nts_info = extract_nts_url(description)
+        if nts_info:
+            track_data["nts_url"] = nts_info["url"]
+            track_data["nts_show_alias"] = nts_info["show_alias"]
+            track_data["nts_episode_alias"] = nts_info["episode_alias"]
 
-                # Fetch NTS metadata
-                nts_metadata = await fetch_nts_metadata(
-                    session,
-                    nts_info["show_alias"],
-                    nts_info["episode_alias"]
-                )
+            nts_metadata = await fetch_nts_metadata(
+                session,
+                nts_info["show_alias"],
+                nts_info["episode_alias"]
+            )
 
-                if nts_metadata:
-                    track_data.update(nts_metadata)
-                    print(f"    NTS: {nts_metadata.get('nts_location', 'Unknown')} | {nts_metadata.get('nts_genres', [])}")
+            if nts_metadata:
+                track_data.update(nts_metadata)
+                print(f"    NTS: {nts_metadata.get('nts_location', 'Unknown')} | {nts_metadata.get('nts_genres', [])}")
 
-                await asyncio.sleep(NTS_RATE_LIMIT_DELAY)
+            await asyncio.sleep(NTS_RATE_LIMIT_DELAY)
 
-            return track_data
+        return track_data
     except Exception as e:
         print(f"  Error fetching track {track_id}: {e}")
         return None
@@ -306,7 +301,7 @@ def extract_nts_url(description: str) -> Optional[Dict[str, str]]:
 
 
 async def fetch_nts_metadata(
-    session: aiohttp.ClientSession,
+    session: curl_requests.AsyncSession,
     show_alias: str,
     episode_alias: str
 ) -> Optional[Dict]:
@@ -314,33 +309,29 @@ async def fetch_nts_metadata(
     url = f"{NTS_API_BASE}/shows/{show_alias}/episodes/{episode_alias}"
 
     try:
-        async with session.get(url, headers=NTS_HEADERS) as resp:
-            if resp.status != 200:
-                return None
+        resp = await session.get(url, headers=NTS_HEADERS)
+        if resp.status_code != 200:
+            return None
 
-            data = await resp.json()
+        data = resp.json()
 
-            # Extract genres (array of {id, value})
-            genres = [g.get("value") for g in data.get("genres", []) if g.get("value")]
+        genres = [g.get("value") for g in data.get("genres", []) if g.get("value")]
+        moods = [m.get("value") for m in data.get("moods", []) if m.get("value")]
 
-            # Extract moods (array of {id, value})
-            moods = [m.get("value") for m in data.get("moods", []) if m.get("value")]
+        intensity = None
+        if data.get("intensity"):
+            try:
+                intensity = int(data.get("intensity"))
+            except (ValueError, TypeError):
+                pass
 
-            # Parse intensity as integer (API returns string)
-            intensity = None
-            if data.get("intensity"):
-                try:
-                    intensity = int(data.get("intensity"))
-                except (ValueError, TypeError):
-                    pass
-
-            return {
-                "nts_location": data.get("location_long"),
-                "nts_genres": genres if genres else None,
-                "nts_moods": moods if moods else None,
-                "nts_intensity": intensity,
-                "nts_broadcast": data.get("broadcast"),
-            }
+        return {
+            "nts_location": data.get("location_long"),
+            "nts_genres": genres if genres else None,
+            "nts_moods": moods if moods else None,
+            "nts_intensity": intensity,
+            "nts_broadcast": data.get("broadcast"),
+        }
     except Exception as e:
         print(f"  Warning: Could not fetch NTS metadata: {e}")
         return None
@@ -361,16 +352,12 @@ async def scrape_all(start_fresh: bool = False):
     """Main scraping function using cursor-based pagination."""
     import math
 
-    # Use cookie jar to maintain session cookies like a real browser
-    jar = aiohttp.CookieJar()
-
-    # Log proxy usage if configured (needed for GitHub Actions to bypass DataDome)
+    # Log proxy usage if configured
     if PROXY_URL:
-        # Hide credentials in log
         proxy_display = PROXY_URL.split('@')[-1] if '@' in PROXY_URL else PROXY_URL[:40]
         print(f"Using proxy: {proxy_display}...")
 
-    async with aiohttp.ClientSession(cookie_jar=jar) as session:
+    async with curl_requests.AsyncSession(impersonate="chrome120", proxies={"https": PROXY_URL} if PROXY_URL else None) as session:
         # 1. Discover client_id
         client_id = await get_client_id(session)
 
