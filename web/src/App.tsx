@@ -213,12 +213,24 @@ function App() {
 
     const heartbeat = window.setInterval(() => {
       applyMediaSessionMetadata(nowPlayingTrackRef.current);
-    }, 10000);
+    }, 2000);
 
     return () => {
       window.clearInterval(heartbeat);
     };
   }, [isPaused, nowPlayingTrack, applyMediaSessionMetadata]);
+
+  // iOS/Safari resilience: re-assert metadata on visibility change (e.g. screen lock/unlock).
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        applyMediaSessionMetadata(nowPlayingTrackRef.current);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [applyMediaSessionMetadata]);
 
   // Media Session API — playback state
   useEffect(() => {

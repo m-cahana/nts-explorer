@@ -45,6 +45,11 @@
   word-break: break-word;
 }
 
+.mobile-top-bar__title--link {
+  text-decoration: none;
+  color: inherit;
+}
+
 .mobile-top-bar__right {
   display: flex;
   flex-direction: column;

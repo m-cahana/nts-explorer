@@ -28,7 +28,18 @@ export function MobileTopBar({
             <span className="mobile-top-bar__label">
               {previewTrack ? 'Previewing' : 'Now Playing'}
             </span>
-            <span className="mobile-top-bar__title">{track.title}</span>
+            {track.nts_url ? (
+              <a
+                className="mobile-top-bar__title mobile-top-bar__title--link"
+                href={track.nts_url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {track.title}
+              </a>
+            ) : (
+              <span className="mobile-top-bar__title">{track.title}</span>
+            )}
           </>
         )}
       </div>
