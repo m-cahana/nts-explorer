@@ -23,11 +23,13 @@ export function MobileGenreScroll({
 }: MobileGenreScrollProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tileRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const tileCenterYRef = useRef<Map<number, number>>(new Map());
   const trackMapRef = useRef<Map<number, Track>>(new Map());
   const centerTrackRef = useRef<Track | null>(null);
   const isScrollingRef = useRef(false);
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const genreDividerRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const prevCenterIdRef = useRef<number | null>(null);
 
   // Stable callback refs
   const onClickRef = useRef(onClick);
@@ -72,44 +74,45 @@ export function MobileGenreScroll({
     if (!container || tracks.length === 0) return;
 
     const CENTER_SCALE = 1.3;
-    let currentCenterId: number | null = null;
 
+    // Uses cached offsetTop positions — zero DOM reads during scroll
     const findClosestTile = (): { tile: HTMLDivElement; centerY: number } | null => {
-      const containerRect = container.getBoundingClientRect();
-      const centerY = containerRect.top + containerRect.height / 2;
-      let best: HTMLDivElement | null = null;
+      const containerCenterY = container.scrollTop + container.clientHeight / 2;
+      let bestId: number | null = null;
       let bestDist = Infinity;
-
-      tileRefs.current.forEach((tile) => {
-        const rect = tile.getBoundingClientRect();
-        const dist = Math.abs(rect.top + rect.height / 2 - centerY);
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = tile;
-        }
+      tileCenterYRef.current.forEach((centerY, trackId) => {
+        const dist = Math.abs(centerY - containerCenterY);
+        if (dist < bestDist) { bestDist = dist; bestId = trackId; }
       });
-
-      return best ? { tile: best, centerY } : null;
+      if (bestId === null) return null;
+      const tile = tileRefs.current.get(bestId);
+      if (!tile) return null;
+      const containerRect = container.getBoundingClientRect();
+      return { tile, centerY: containerRect.top + container.clientHeight / 2 };
     };
 
     const updateCenterTile = () => {
       const found = findClosestTile();
       const newCenterId = found ? Number(found.tile.dataset.trackId) : null;
 
-      if (newCenterId !== currentCenterId) {
-        if (currentCenterId !== null) {
-          const prev = tileRefs.current.get(currentCenterId);
-          if (prev) prev.style.transform = 'scale(1)';
+      if (newCenterId !== prevCenterIdRef.current) {
+        if (prevCenterIdRef.current !== null) {
+          const prev = tileRefs.current.get(prevCenterIdRef.current);
+          if (prev) {
+            prev.style.transform = 'scale(1)';
+            prev.style.willChange = 'auto';
+          }
         }
         if (found) {
           found.tile.style.transform = `scale(${CENTER_SCALE})`;
+          found.tile.style.willChange = 'transform';
         }
-        currentCenterId = newCenterId;
+        prevCenterIdRef.current = newCenterId;
       }
     };
 
     const settleOnCenter = () => {
-      // Snap scroll position
+      // Snap scroll position — single getBoundingClientRect on the closest tile only
       const found = findClosestTile();
       if (!found) return;
 
@@ -148,6 +151,16 @@ export function MobileGenreScroll({
       }, 150);
     };
 
+    // Rebuild cached tile center Y positions on container resize (e.g. orientation change)
+    const refreshTileCache = () => {
+      tileRefs.current.forEach((tile, trackId) => {
+        tileCenterYRef.current.set(trackId, tile.offsetTop + tile.offsetHeight / 2);
+      });
+    };
+
+    const resizeObserver = new ResizeObserver(refreshTileCache);
+    resizeObserver.observe(container);
+
     // Initial pass — scale and attempt to play the first centered tile.
     // On real iOS Safari this will be blocked (no gesture) — user must tap.
     // On desktop / DevTools mobile simulation it works normally.
@@ -169,14 +182,17 @@ export function MobileGenreScroll({
     return () => {
       container.removeEventListener('scroll', handleScroll);
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      resizeObserver.disconnect();
     };
   }, [tracks]);
 
   const setTileRef = useCallback((el: HTMLDivElement | null, trackId: number) => {
     if (el) {
       tileRefs.current.set(trackId, el);
+      tileCenterYRef.current.set(trackId, el.offsetTop + el.offsetHeight / 2);
     } else {
       tileRefs.current.delete(trackId);
+      tileCenterYRef.current.delete(trackId);
     }
   }, []);
 
@@ -223,12 +239,22 @@ export function MobileGenreScroll({
       duration: 0.3,
       ease: 'power2.out',
       onUpdate: () => {
-        const found = findClosestTileFromContainer(container, tileRefs.current);
-        if (found) {
-          tileRefs.current.forEach((t, id) => {
-            t.style.transform =
-              id === Number(found.tile.dataset.trackId) ? 'scale(1.3)' : 'scale(1)';
-          });
+        // Use cached positions — no getBoundingClientRect on tiles, only update 2 tiles max
+        const containerCenterY = container.scrollTop + container.clientHeight / 2;
+        let bestId: number | null = null;
+        let bestDist = Infinity;
+        tileCenterYRef.current.forEach((cy, id) => {
+          const d = Math.abs(cy - containerCenterY);
+          if (d < bestDist) { bestDist = d; bestId = id; }
+        });
+        if (bestId !== null && bestId !== prevCenterIdRef.current) {
+          if (prevCenterIdRef.current !== null) {
+            const prev = tileRefs.current.get(prevCenterIdRef.current);
+            if (prev) { prev.style.transform = 'scale(1)'; prev.style.willChange = 'auto'; }
+          }
+          const next = tileRefs.current.get(bestId);
+          if (next) { next.style.transform = 'scale(1.3)'; next.style.willChange = 'transform'; }
+          prevCenterIdRef.current = bestId;
         }
       },
     });
@@ -283,27 +309,6 @@ export function MobileGenreScroll({
       />
     </>
   );
-}
-
-function findClosestTileFromContainer(
-  container: HTMLDivElement,
-  tiles: Map<number, HTMLDivElement>,
-): { tile: HTMLDivElement; centerY: number } | null {
-  const containerRect = container.getBoundingClientRect();
-  const centerY = containerRect.top + containerRect.height / 2;
-  let best: HTMLDivElement | null = null;
-  let bestDist = Infinity;
-
-  tiles.forEach((tile) => {
-    const rect = tile.getBoundingClientRect();
-    const dist = Math.abs(rect.top + rect.height / 2 - centerY);
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = tile;
-    }
-  });
-
-  return best ? { tile: best, centerY } : null;
 }
 
 interface MobileGenreSectionProps {
