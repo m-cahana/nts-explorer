@@ -805,7 +805,7 @@ export const GenreLines = forwardRef<GenreLinesHandle, GenreLinesProps>(
                   const displayTrack = gridHoveredTrack ?? previewTrack ?? activeTrack;
                   const hasGenres = (displayTrack?.nts_genres?.length ?? 0) > 0;
                   const hasLocation = !!displayTrack?.nts_location;
-                  const rawDesc = displayTrack?.description?.replace(/https?:\/\/\S+/g, '').replace(/\s{2,}/g, ' ').trim();
+                  const rawDesc = displayTrack?.description?.replace(/\s*:?\s*https?:\/\/\S+/g, ' ').replace(/\s{2,}/g, ' ').trim();
                   const hasDesc = !!rawDesc;
                   return displayTrack ? (
                     <div className="track-info">
