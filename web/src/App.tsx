@@ -420,6 +420,7 @@ function App() {
                 selectedYear={selectedYear}
                 onYearChange={handleYearChange}
                 isLoading={loading || yearsLoading}
+                loadingProgress={progress}
               />
               <MobileGenreScroll tracks={tracks} onClick={handleClick} />
             </>

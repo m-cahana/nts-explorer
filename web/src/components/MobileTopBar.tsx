@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import type { Track } from '../types';
 import './MobileTopBar.css';
 
@@ -8,7 +9,10 @@ interface MobileTopBarProps {
   selectedYear: number;
   onYearChange: (year: number) => void;
   isLoading: boolean;
+  loadingProgress: number;
 }
+
+type BarPhase = 'hidden' | 'loading' | 'completing' | 'fading';
 
 export function MobileTopBar({
   activeTrack,
@@ -17,8 +21,30 @@ export function MobileTopBar({
   selectedYear,
   onYearChange,
   isLoading,
+  loadingProgress,
 }: MobileTopBarProps) {
   const track = previewTrack || activeTrack;
+  const [barPhase, setBarPhase] = useState<BarPhase>('hidden');
+
+  useEffect(() => {
+    if (isLoading) {
+      setBarPhase('loading');
+      return;
+    }
+
+    setBarPhase((prev) => {
+      if (prev === 'hidden') return 'hidden';
+      return 'completing';
+    });
+
+    const fadingTimer = setTimeout(() => setBarPhase('fading'), 150);
+    const hiddenTimer = setTimeout(() => setBarPhase('hidden'), 550);
+
+    return () => {
+      clearTimeout(fadingTimer);
+      clearTimeout(hiddenTimer);
+    };
+  }, [isLoading]);
 
   return (
     <div className="mobile-top-bar">
@@ -44,8 +70,13 @@ export function MobileTopBar({
         )}
       </div>
       <div className="mobile-top-bar__right">
-        {isLoading ? (
-          <div className="mobile-top-bar__spinner" />
+        {barPhase !== 'hidden' ? (
+          <div className={`mobile-top-bar__bar${barPhase === 'fading' ? ' mobile-top-bar__bar--fading' : ''}`}>
+            <div
+              className="mobile-top-bar__bar__fill"
+              style={{ height: barPhase === 'loading' ? `${loadingProgress}%` : '100%' }}
+            />
+          </div>
         ) : (
           years.map((year) => (
             <button
