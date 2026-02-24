@@ -663,7 +663,7 @@ export const GenreLines = forwardRef<GenreLinesHandle, GenreLinesProps>(
     }, []);
 
     const handleSlotClick = useCallback((genre: string) => {
-      setExpandedGenre((prev) => (prev === genre ? null : genre));
+      setExpandedGenre(genre);
     }, []);
 
     const handleGenrePointerEnter = useCallback((group: GenreGroup) => {
@@ -798,7 +798,7 @@ export const GenreLines = forwardRef<GenreLinesHandle, GenreLinesProps>(
             )}
           </div>
 
-          <div className="genre-content" onClick={() => setExpandedGenre(null)}>
+          <div className="genre-content">
             {expandedGroup && (
               <>
                 {(() => {
