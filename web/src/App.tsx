@@ -459,6 +459,7 @@ function App() {
             selectedYear={selectedYear}
             onYearChange={handleYearChange}
             isLoading={loading || yearsLoading}
+            loadingProgress={progress}
             position={position}
             duration={duration}
             isPaused={isPaused}

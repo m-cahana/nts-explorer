@@ -28,6 +28,7 @@ interface BottomBarProps {
   selectedYear: number;
   onYearChange: (year: number) => void;
   isLoading: boolean;
+  loadingProgress: number;
   position: number;
   duration: number;
   isPaused: boolean;
@@ -36,6 +37,8 @@ interface BottomBarProps {
   onArtworkClick?: (track: Track) => void;
 }
 
+type BarPhase = 'hidden' | 'loading' | 'completing' | 'fading';
+
 export function BottomBar({
   activeTrack,
   previewTrack,
@@ -43,6 +46,7 @@ export function BottomBar({
   selectedYear,
   onYearChange,
   isLoading,
+  loadingProgress,
   position,
   duration,
   isPaused,
@@ -52,6 +56,27 @@ export function BottomBar({
 }: BottomBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [barPhase, setBarPhase] = useState<BarPhase>('hidden');
+
+  useEffect(() => {
+    if (isLoading) {
+      setBarPhase('loading');
+      return;
+    }
+
+    setBarPhase((prev) => {
+      if (prev === 'hidden') return 'hidden';
+      return 'completing';
+    });
+
+    const fadingTimer = setTimeout(() => setBarPhase('fading'), 150);
+    const hiddenTimer = setTimeout(() => setBarPhase('hidden'), 550);
+
+    return () => {
+      clearTimeout(fadingTimer);
+      clearTimeout(hiddenTimer);
+    };
+  }, [isLoading]);
   const [dragProgress, setDragProgress] = useState<number | null>(null);
   const [latchedProgress, setLatchedProgress] = useState<number | null>(null);
 
@@ -213,8 +238,13 @@ export function BottomBar({
 
       {/* Center: Year navigation */}
       <div className="bottom-bar__center">
-        {isLoading ? (
-          <span className="bottom-bar__loading">loading</span>
+        {barPhase !== 'hidden' ? (
+          <div className={`bottom-bar__bar${barPhase === 'fading' ? ' bottom-bar__bar--fading' : ''}`}>
+            <div
+              className="bottom-bar__bar__fill"
+              style={{ width: barPhase === 'loading' ? `${loadingProgress}%` : '100%' }}
+            />
+          </div>
         ) : (
           years.map((year) => (
             <button
