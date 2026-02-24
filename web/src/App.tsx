@@ -56,6 +56,8 @@ function App() {
   }, [previewTrack]);
 
   const artworkBlobUrlRef = useRef<string | null>(null);
+  // Tracks preview-active state synchronously (avoids React state timing issues in play/pause handlers)
+  const isPreviewActiveRef = useRef(false);
 
   const savedPositionRef = useRef(0);
 
@@ -107,24 +109,40 @@ function App() {
     });
   }, []);
 
-  const handlePlay = useCallback(() => {
-    setIsPaused(false);
-
+  const assertMediaSessionSoon = useCallback(() => {
+    // Re-assert MediaSession metadata at multiple points after playback starts.
     // iOS/Safari can let the SoundCloud iframe overwrite lock-screen metadata.
-    // Re-assert track metadata shortly after playback starts.
-    window.setTimeout(() => {
-      applyMediaSessionMetadata(nowPlayingTrackRef.current);
-    }, 50);
-    window.setTimeout(() => {
-      applyMediaSessionMetadata(nowPlayingTrackRef.current);
-    }, 500);
+    window.setTimeout(() => { applyMediaSessionMetadata(nowPlayingTrackRef.current); }, 50);
+    window.setTimeout(() => { applyMediaSessionMetadata(nowPlayingTrackRef.current); }, 300);
+    window.setTimeout(() => { applyMediaSessionMetadata(nowPlayingTrackRef.current); }, 800);
   }, [applyMediaSessionMetadata]);
 
-  const handlePause = useCallback(() => {
+  // Main player handlers — ignored while preview is active
+  const handleMainPlay = useCallback(() => {
+    if (isPreviewActiveRef.current) return;
+    setIsPaused(false);
+    assertMediaSessionSoon();
+  }, [assertMediaSessionSoon]);
+
+  const handleMainPause = useCallback(() => {
+    if (isPreviewActiveRef.current) return;
+    setIsPaused(true);
+  }, []);
+
+  // Preview player handlers — ignored while preview is not active
+  const handlePreviewPlay = useCallback(() => {
+    if (!isPreviewActiveRef.current) return;
+    setIsPaused(false);
+    assertMediaSessionSoon();
+  }, [assertMediaSessionSoon]);
+
+  const handlePreviewPause = useCallback(() => {
+    if (!isPreviewActiveRef.current) return;
     setIsPaused(true);
   }, []);
 
   const handleHover = useCallback((track: Track) => {
+    isPreviewActiveRef.current = true;
     // Save current position and pause main player
     if (mainPlayerRef.current) {
       savedPositionRef.current = mainPlayerRef.current.getPosition();
@@ -140,6 +158,7 @@ function App() {
   }, []);
 
   const handleHoverEnd = useCallback(() => {
+    isPreviewActiveRef.current = false;
     // Stop preview
     if (previewPlayerRef.current) {
       previewPlayerRef.current.pause();
@@ -155,6 +174,28 @@ function App() {
 
   const handleClick = useCallback((track: Track) => {
     console.log("[App] handleClick called for track:", track.id, track.title);
+
+    isPreviewActiveRef.current = false;
+
+    // Pre-fetch artwork blob immediately so it's ready when the PLAY event fires.
+    // This avoids the race condition where the lock screen shows no artwork because
+    // the blob URL wasn't ready at the time of MediaSession metadata assertion.
+    if (artworkBlobUrlRef.current) {
+      URL.revokeObjectURL(artworkBlobUrlRef.current);
+      artworkBlobUrlRef.current = null;
+    }
+    if (track.artwork_url) {
+      const url = getArtworkUrl(track.artwork_url, 512);
+      const expectedPermalink = track.permalink_url;
+      fetch(url)
+        .then(r => r.blob())
+        .then(blob => {
+          if (activeTrackRef.current?.permalink_url !== expectedPermalink) return;
+          if (artworkBlobUrlRef.current) URL.revokeObjectURL(artworkBlobUrlRef.current);
+          artworkBlobUrlRef.current = URL.createObjectURL(blob);
+        })
+        .catch(() => {});
+    }
 
     // Stop preview if any
     if (previewPlayerRef.current) {
@@ -399,15 +440,15 @@ function App() {
           <SoundCloudPlayer
             ref={mainPlayerRef}
             onProgress={handleMainProgress}
-            onPlay={handlePlay}
-            onPause={handlePause}
+            onPlay={handleMainPlay}
+            onPause={handleMainPause}
           />
 
           <SoundCloudPlayer
             ref={previewPlayerRef}
             onProgress={handlePreviewProgress}
-            onPlay={handlePlay}
-            onPause={handlePause}
+            onPlay={handlePreviewPlay}
+            onPause={handlePreviewPause}
           />
 
           <BottomBar
