@@ -3,7 +3,7 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 70px;
+  height: 60px;
   background: var(--color-white);
   border-top: 2px solid var(--color-black);
   display: flex;
@@ -108,15 +108,23 @@
 }
 
 .bottom-bar__loading::after {
-  content: '';
+  content: "";
   animation: bottom-bar-dots 1.2s steps(1, end) infinite;
 }
 
 @keyframes bottom-bar-dots {
-  0%   { content: ''; }
-  25%  { content: '.'; }
-  50%  { content: '..'; }
-  75%  { content: '...'; }
+  0% {
+    content: "";
+  }
+  25% {
+    content: ".";
+  }
+  50% {
+    content: "..";
+  }
+  75% {
+    content: "...";
+  }
 }
 
 /* Right section: Playback controls */
