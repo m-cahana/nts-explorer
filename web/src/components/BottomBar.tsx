@@ -214,7 +214,7 @@ export function BottomBar({
       {/* Center: Year navigation */}
       <div className="bottom-bar__center">
         {isLoading ? (
-          <div className="bottom-bar__spinner" />
+          <span className="bottom-bar__loading">loading</span>
         ) : (
           years.map((year) => (
             <button
