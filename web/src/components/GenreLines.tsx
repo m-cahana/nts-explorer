@@ -422,7 +422,7 @@ function TrackGrid({
 
     return {
       scale: fitScale,
-      translateX: (cw - gridWidth * fitScale) / 2,
+      translateX: 0,
       translateY: (ch - gridHeight * fitScale) / 2,
     };
   }, [gridParams, containerSize]);
