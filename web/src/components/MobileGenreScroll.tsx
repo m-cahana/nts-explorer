@@ -351,7 +351,7 @@ function MobileGenreSection({
             onClick={() => onTileClick(track.id)}
           >
             {artworkUrl && (
-              <img src={artworkUrl} alt="" loading="lazy" draggable={false} />
+              <img src={artworkUrl} alt="" draggable={false} />
             )}
           </div>
         );
