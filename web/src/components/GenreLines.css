@@ -49,7 +49,7 @@
   right: 0;
   width: 6px;
   height: 100%;
-  pointer-events: none;
+  cursor: pointer;
 }
 
 .genre-scrollbar-thumb {
@@ -57,8 +57,7 @@
   right: 0;
   width: 6px;
   background: var(--color-black);
-  pointer-events: auto;
-  cursor: default;
+  cursor: ns-resize;
 }
 
 .genre-content {
@@ -118,19 +117,61 @@
   object-fit: cover;
 }
 
-/* Genre title in content area */
-.genre-title {
+.track-info {
   position: absolute;
   top: 20px;
-  left: 20px;
-  font-family: var(--font-display-secondary);
-  font-size: 24px;
-  font-weight: bold;
+  left: 0;
+  right: 0;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 500;
   color: var(--color-white);
   white-space: nowrap;
   pointer-events: none;
   z-index: 2;
   mix-blend-mode: difference;
+  overflow: hidden;
+}
+
+.track-info__genres,
+.track-info__location {
+  flex-shrink: 0;
+}
+
+.track-info__location {
+  font-style: italic;
+}
+
+.track-info__sep {
+  flex-shrink: 0;
+  opacity: 1;
+}
+
+.track-info__marquee {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.track-info__marquee-inner {
+  display: inline-block;
+  white-space: nowrap;
+  padding-left: 50%;
+  animation: track-info-marquee linear infinite;
+}
+
+@keyframes track-info-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
 }
 
 .track-grid-container {
