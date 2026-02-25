@@ -25,6 +25,7 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           SOUNDCLOUD_USER_ID: ${{ secrets.SOUNDCLOUD_USER_ID }}
           PROXY_URL: ${{ secrets.PROXY_URL }}
+          SOUNDCLOUD_COOKIES: ${{ secrets.SOUNDCLOUD_COOKIES }}
         run: |
           cd scraper
           if [ "${{ inputs.reset }}" = "true" ]; then

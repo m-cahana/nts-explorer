@@ -29,6 +29,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 SOUNDCLOUD_USER_ID = os.getenv("SOUNDCLOUD_USER_ID", "user-202286394-991268468")
 PROXY_URL = os.getenv("PROXY_URL")  # Optional: residential proxy to bypass DataDome
+SOUNDCLOUD_COOKIES = os.getenv("SOUNDCLOUD_COOKIES")  # Optional: browser cookies to bypass DataDome
 
 BATCH_SIZE = 50  # Tracks per API page
 RATE_LIMIT_DELAY = 1.5  # Base seconds between individual track requests
@@ -42,6 +43,7 @@ def jittered_delay(base: float) -> float:
 
 # SoundCloud API headers (required to avoid bot detection)
 SOUNDCLOUD_HEADERS = {
+    **({"Cookie": SOUNDCLOUD_COOKIES} if SOUNDCLOUD_COOKIES else {}),
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "Accept": "application/json, text/javascript, */*; q=0.01",
     "Accept-Language": "en-US,en;q=0.9",
