@@ -44,7 +44,7 @@
 }
 
 .loading-screen__bar {
-  width: 271px;
+  width: 250px;
   height: 34px;
   border: 1px solid var(--color-black);
   position: relative;
