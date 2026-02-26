@@ -1,7 +1,10 @@
 .az-helper {
   position: fixed;
   left: 8px;
-  top: calc((100dvh - (var(--mobile-bottom-bar-height) + env(safe-area-inset-bottom))) / 1.45);
+  top: calc(
+    (100dvh - (var(--mobile-bottom-bar-height) + env(safe-area-inset-bottom))) /
+      1.45
+  );
   transform: translateY(-50%);
   z-index: 100;
   user-select: none;
@@ -15,8 +18,8 @@
   font-weight: 700;
   color: var(--color-black);
   text-align: center;
-  margin-bottom: 2px;
-  padding: 0 2px;
+  margin-bottom: 0;
+  padding: 0 6px 2px;
   background: var(--color-white);
 }
 
