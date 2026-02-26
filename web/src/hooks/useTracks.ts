@@ -5,7 +5,7 @@ import type { Track } from "../types";
 const PAGE_SIZE = 1000;
 
 // Set to a number to randomly sample up to that many tracks, or null to fetch all
-const SAMPLE_SIZE: number | null = 6000;
+const SAMPLE_SIZE: number | null = null;
 
 export function useTracks(year?: number) {
   const [tracks, setTracks] = useState<Track[]>([]);
