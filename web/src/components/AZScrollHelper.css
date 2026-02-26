@@ -9,12 +9,15 @@
 }
 
 .az-helper__label {
+  display: inline-block;
   font-family: var(--font-display);
   font-size: 10px;
   font-weight: 700;
   color: var(--color-black);
   text-align: center;
   margin-bottom: 2px;
+  padding: 0 2px;
+  background: var(--color-white);
 }
 
 .az-helper__progress-box {
