@@ -55,6 +55,7 @@ export function BottomBar({
   onArtworkClick,
 }: BottomBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
+  const lastPlayTouchTsRef = useRef(0);
   const [isDragging, setIsDragging] = useState(false);
   const [barPhase, setBarPhase] = useState<BarPhase>('hidden');
 
@@ -194,10 +195,17 @@ export function BottomBar({
     (e: React.TouchEvent<HTMLButtonElement>) => {
       // Trigger playback immediately inside a touch gesture for iOS Safari.
       e.preventDefault();
+      lastPlayTouchTsRef.current = Date.now();
       onPlayPause();
     },
     [onPlayPause],
   );
+
+  const handlePlayClick = useCallback(() => {
+    // iOS can fire a synthetic click after touchstart; ignore it so one tap toggles once.
+    if (Date.now() - lastPlayTouchTsRef.current < 700) return;
+    onPlayPause();
+  }, [onPlayPause]);
 
   return (
     <div className="bottom-bar">
@@ -262,7 +270,7 @@ export function BottomBar({
       <div className="bottom-bar__right">
         <button
           className="bottom-bar__play-button"
-          onClick={onPlayPause}
+          onClick={handlePlayClick}
           onTouchStart={handlePlayTouchStart}
         >
           {isPaused ? (
