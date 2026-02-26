@@ -203,7 +203,7 @@
 
 @media (max-width: 600px) {
   .bottom-bar {
-    height: calc(50px + env(safe-area-inset-bottom));
+    height: calc(var(--mobile-bottom-bar-height) + env(safe-area-inset-bottom));
     padding: 0 16px env(safe-area-inset-bottom);
     border-top: 1px solid var(--color-black);
   }

@@ -1,7 +1,7 @@
 .az-helper {
   position: fixed;
   left: 8px;
-  top: calc((100dvh - (50px + env(safe-area-inset-bottom))) / 1.45);
+  top: calc((100dvh - (var(--mobile-bottom-bar-height) + env(safe-area-inset-bottom))) / 1.45);
   transform: translateY(-50%);
   z-index: 100;
   user-select: none;
