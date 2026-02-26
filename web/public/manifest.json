@@ -1,6 +1,6 @@
 {
-  "name": "NTS Explorer",
-  "short_name": "NTS Explorer",
+  "name": "NTS Archives",
+  "short_name": "NTS Archives",
   "description": "Explore NTS Radio shows and tracks",
   "start_url": "/",
   "display": "standalone",
