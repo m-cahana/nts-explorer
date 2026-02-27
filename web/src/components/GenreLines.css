@@ -92,14 +92,14 @@
   font-weight: 500;
   color: var(--color-black);
   white-space: nowrap;
-  transition: opacity 0.3s ease;
   cursor: none;
   user-select: none;
   pointer-events: auto;
 }
 
 .genre-slot:not(.genre-slot--expanded):hover .genre-text {
-  opacity: 0.6;
+  color: var(--color-red);
+  opacity: 1;
 }
 
 /* Hover preview tile */
