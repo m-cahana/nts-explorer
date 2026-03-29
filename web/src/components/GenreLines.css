@@ -34,12 +34,15 @@
 
 .genre-sidebar__title {
   position: absolute;
-  top: 20px;
-  left: 16px;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 20px 16px 8px 16px;
   font-family: var(--font-display);
   font-size: 24px;
   font-weight: 700;
   color: var(--color-black);
+  background: var(--color-white);
   z-index: 1;
 }
 
