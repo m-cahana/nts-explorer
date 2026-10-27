@@ -23,6 +23,7 @@ Thumbs.db
 
 # GitHub Actions self-hosted runner
 actions-runner/
+actions-runner-arm64/
 
 # AI tool local config
 .agents/
